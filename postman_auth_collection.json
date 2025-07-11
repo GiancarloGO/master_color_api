@@ -1,0 +1,257 @@
+{
+  "info": {
+    "_postman_id": "b3d8d3f0-1234-4bcd-9cde-abcdef123456",
+    "name": "MasterColor API - Full Test Suite",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Colección de endpoints de autenticación, usuario y roles para MasterColor API."
+  },
+  "item": [
+    {
+      "name": "Registro de usuario",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Admin Master\",\n  \"email\": \"admin@mastercolor.com\",\n  \"password\": \"admin1234\",\n  \"password_confirmation\": \"admin1234\",\n  \"role_id\": 1,\n  \"dni\": \"12345678\",\n  \"phone\": \"912345678\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/register",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "register"]
+        }
+      }
+    },
+    {
+      "name": "Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"admin@mastercolor.com\",\n  \"password\": \"admin1234\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/auth/login",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "login"]
+        }
+      }
+    },
+    {
+      "name": "Obtener usuario autenticado (me)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/auth/me",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "me"]
+        }
+      }
+    },
+    {
+      "name": "Refrescar token",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/auth/refresh",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "refresh"]
+        }
+      }
+    },
+    {
+      "name": "Logout",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/auth/logout",
+          "host": ["{{base_url}}"],
+          "path": ["auth", "logout"]
+        }
+      }
+    },
+
+    {
+      "name": "Listar usuarios",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/user",
+          "host": ["{{base_url}}"],
+          "path": ["user"]
+        }
+      }
+    },
+    {
+      "name": "Crear usuario",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Nuevo Usuario\",\n  \"email\": \"nuevo@mastercolor.com\",\n  \"password\": \"password123\",\n  \"password_confirmation\": \"password123\",\n  \"role_id\": 2,\n  \"dni\": \"87654321\",\n  \"phone\": \"912345679\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/user",
+          "host": ["{{base_url}}"],
+          "path": ["user"]
+        }
+      }
+    },
+    {
+      "name": "Ver usuario",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/user/2",
+          "host": ["{{base_url}}"],
+          "path": ["user", "2"]
+        }
+      }
+    },
+    {
+      "name": "Actualizar usuario",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Usuario Actualizado\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/user/2",
+          "host": ["{{base_url}}"],
+          "path": ["user", "2"]
+        }
+      }
+    },
+    {
+      "name": "Eliminar usuario",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/user/2",
+          "host": ["{{base_url}}"],
+          "path": ["user", "2"]
+        }
+      }
+    },
+
+    {
+      "name": "Listar roles",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/role",
+          "host": ["{{base_url}}"],
+          "path": ["role"]
+        }
+      }
+    },
+    {
+      "name": "Crear rol",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"NuevoRol\",\n  \"description\": \"Rol de prueba\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/role",
+          "host": ["{{base_url}}"],
+          "path": ["role"]
+        }
+      }
+    },
+    {
+      "name": "Ver rol",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/role/2",
+          "host": ["{{base_url}}"],
+          "path": ["role", "2"]
+        }
+      }
+    },
+    {
+      "name": "Actualizar rol",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Rol Actualizado\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/role/2",
+          "host": ["{{base_url}}"],
+          "path": ["role", "2"]
+        }
+      }
+    },
+    {
+      "name": "Eliminar rol",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/role/2",
+          "host": ["{{base_url}}"],
+          "path": ["role", "2"]
+        }
+      }
+    }
+  ],
+  "variable": [
+    { "key": "base_url", "value": "http://master_color_api.test/api" },
+    { "key": "access_token", "value": "" }
+  ]
+}
