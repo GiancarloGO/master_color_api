@@ -4,6 +4,15 @@ set -e
 
 echo "🚀 Starting Master Color API Docker Container"
 
+# Configurar puerto dinámico para Render
+if [ -n "$PORT" ]; then
+    echo "📡 Using dynamic port: $PORT"
+    sed -i "s/listen 80;/listen $PORT;/g" /etc/nginx/sites-available/default
+else
+    echo "📡 Using default port: 8080"
+    sed -i "s/listen 80;/listen 8080;/g" /etc/nginx/sites-available/default
+fi
+
 # Función para esperar que la base de datos esté lista
 wait_for_db() {
     echo "⏳ Waiting for database connection..."

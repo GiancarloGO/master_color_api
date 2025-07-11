@@ -13,13 +13,14 @@ RUN apt-get update && apt-get install -y \
     libonig-dev \
     libxml2-dev \
     libzip-dev \
+    libpq-dev \
     zip \
     unzip \
     nodejs \
     npm \
     nginx \
     supervisor \
-    && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd zip
+    && docker-php-ext-install pdo_mysql pdo_pgsql mbstring exif pcntl bcmath gd zip
 
 # Limpiar cache de apt
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -64,16 +65,14 @@ RUN chmod -R 775 /var/www/storage /var/www/bootstrap/cache
 # Generar assets de producción
 RUN npm run build
 
-# Optimizar Laravel para producción
-RUN php artisan config:cache
-RUN php artisan route:cache
-RUN php artisan view:cache
+# Crear directorios necesarios para logs
+RUN mkdir -p /var/log/nginx /var/log/supervisor
 
 # Cambiar al usuario no-root
 USER $user
 
-# Exponer puerto
-EXPOSE 80
+# Exponer puerto (Render usa puerto dinámico)
+EXPOSE 8080
 
 # Comando de inicio
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

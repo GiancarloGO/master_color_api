@@ -10,7 +10,6 @@ services:
   - type: web
     name: master-color-api
     runtime: docker
-    dockerfilePath: ./Dockerfile.cloud
     plan: free
     region: oregon
     branch: main
