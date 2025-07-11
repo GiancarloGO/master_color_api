@@ -7,6 +7,7 @@ RUN apk add --no-cache \
     nodejs \
     npm \
     mysql-client \
+    postgresql-client \
     redis \
     curl \
     zip \
@@ -16,8 +17,9 @@ RUN apk add --no-cache \
     libzip-dev \
     libxml2-dev \
     oniguruma-dev \
+    postgresql-dev \
     supervisor \
-    && docker-php-ext-install pdo_mysql mbstring zip exif pcntl bcmath gd
+    && docker-php-ext-install pdo_mysql pdo_pgsql mbstring zip exif pcntl bcmath gd
 
 # Instalar Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
