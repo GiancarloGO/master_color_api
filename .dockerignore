@@ -46,7 +46,12 @@ docker-compose.yml
 docker-compose.*.yml
 Dockerfile
 .dockerignore
-docker/
+# Mantener docker/cloud/ para deployment
+docker/entrypoint.sh
+docker/nginx/
+docker/php/
+docker/supervisor/
+docker/mysql/
 
 # Testing
 .phpunit.result.cache
