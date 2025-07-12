@@ -1,9 +1,5 @@
-# Dockerfile para Master Color API
-FROM php:8.2-fpm
-
-# Configurar argumentos para el build
-ARG user=laravel
-ARG uid=1000
+# Usar PHP 8.3 con Apache
+FROM php:8.3-apache
 
 # Instalar dependencias del sistema
 RUN apt-get update && apt-get install -y \
@@ -12,67 +8,49 @@ RUN apt-get update && apt-get install -y \
     libpng-dev \
     libonig-dev \
     libxml2-dev \
-    libzip-dev \
     libpq-dev \
     zip \
     unzip \
     nodejs \
-    npm \
-    nginx \
-    supervisor \
-    && docker-php-ext-install pdo_mysql pdo_pgsql mbstring exif pcntl bcmath gd zip
+    npm
 
-# Limpiar cache de apt
+# Limpiar caché
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Instalar extensiones PHP
+RUN docker-php-ext-install pdo pdo_pgsql mbstring exif pcntl bcmath gd
 
 # Instalar Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Crear usuario del sistema para ejecutar comandos de Composer y Artisan
-RUN useradd -G www-data,root -u $uid -d /home/$user $user
-RUN mkdir -p /home/$user/.composer && \
-    chown -R $user:$user /home/$user
+# Habilitar mod_rewrite de Apache
+RUN a2enmod rewrite
 
-# Configurar directorio de trabajo
-WORKDIR /var/www
+# Configurar DocumentRoot
+ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 
-# Copiar archivos de dependencias primero (para optimizar cache de Docker)
-COPY composer.json composer.lock package.json package-lock.json ./
+RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
+RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
 
-# Instalar dependencias PHP como root
-RUN composer install --no-dev --optimize-autoloader --no-scripts
+# Establecer directorio de trabajo
+WORKDIR /var/www/html
 
-# Instalar dependencias de Node.js
-RUN npm ci --only=production
+# Copiar archivos del proyecto
+COPY . /var/www/html
 
-# Copiar el resto de la aplicación
-COPY . .
+# Instalar dependencias de Composer
+RUN composer install --optimize-autoloader --no-dev
 
-# Copiar archivo de configuración de Nginx
-COPY docker/nginx/default.conf /etc/nginx/sites-available/default
+# Instalar dependencias de NPM si existe package.json
+RUN if [ -f package.json ]; then npm install && npm run build; fi
 
-# Copiar configuración de Supervisor
-COPY docker/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+# Establecer permisos
+RUN chown -R www-data:www-data /var/www/html \
+    && chmod -R 755 /var/www/html/storage \
+    && chmod -R 755 /var/www/html/bootstrap/cache
 
-# Copiar script de entrypoint
-COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+# Exponer puerto 80
+EXPOSE 80
 
-# Configurar permisos
-RUN chown -R $user:www-data /var/www
-RUN chmod -R 775 /var/www/storage /var/www/bootstrap/cache
-
-# Generar assets de producción
-RUN npm run build
-
-# Crear directorios necesarios para logs
-RUN mkdir -p /var/log/nginx /var/log/supervisor
-
-# Cambiar al usuario no-root
-USER $user
-
-# Exponer puerto (Render usa puerto dinámico)
-EXPOSE 8080
-
-# Comando de inicio
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+# Comando por defecto
+CMD ["apache2-foreground"]
