@@ -11,13 +11,20 @@ class FileUploadService
     private const ALLOWED_IMAGE_TYPES = ['jpg', 'jpeg', 'png', 'webp'];
     private const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
 
+    private string $disk;
+
+    public function __construct(?string $disk = null)
+    {
+        $this->disk = $disk ?? config('filesystems.default', 's3');
+    }
+
     public function uploadImage(UploadedFile $file, string $folder = 'images', string $prefix = 'img'): string
     {
         $this->validateImage($file);
-        
+
         $fileName = $this->generateFileName($file, $prefix);
-        $path = $file->storeAs($folder, $fileName, 'public');
-        
+        $path = $file->storeAs($folder, $fileName, $this->disk);
+
         return $path;
     }
 
@@ -28,18 +35,19 @@ class FileUploadService
         }
 
         if (str_starts_with($imagePath, 'http')) {
+            // Intentamos extraer la ruta relativa del objeto dentro del bucket o del storage local
             $parsedUrl = parse_url($imagePath);
             if (isset($parsedUrl['path'])) {
-                $path = str_replace('/storage/', '', $parsedUrl['path']);
-                if (Storage::disk('public')->exists($path)) {
-                    Storage::disk('public')->delete($path);
+                $path = ltrim($parsedUrl['path'], '/');
+                if (Storage::disk($this->disk)->exists($path)) {
+                    Storage::disk($this->disk)->delete($path);
                 }
             }
             return;
         }
 
-        if (Storage::disk('public')->exists($imagePath)) {
-            Storage::disk('public')->delete($imagePath);
+        if (Storage::disk($this->disk)->exists($imagePath)) {
+            Storage::disk($this->disk)->delete($imagePath);
         }
     }
 
@@ -80,6 +88,6 @@ class FileUploadService
             return $imagePath;
         }
 
-        return Storage::disk('public')->url($imagePath);
+        return Storage::disk($this->disk)->url($imagePath);
     }
 }
