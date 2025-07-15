@@ -538,7 +538,8 @@ class PaymentService
                 'success' => $frontendUrl . '/payment/success?order=' . $order->id,
                 'failure' => $frontendUrl . '/payment/failure?order=' . $order->id,
                 'pending' => $frontendUrl . '/payment/pending?order=' . $order->id
-            ]
+            ],
+            'auto_return' => 'all'
         ];
 
         // Solo agregar notification_url y statement_descriptor si no es localhost
