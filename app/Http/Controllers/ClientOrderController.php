@@ -344,7 +344,7 @@ class ClientOrderController extends Controller
             $excluded = ['pendiente_pago', 'cancelado', 'pago_fallido'];
 
             // Obtener detalles de órdenes válidas
-            $orderDetailsQuery = \App\Models\OrderDetail::with('product', 'order')
+            $orderDetailsQuery = OrderDetail::with('product', 'order')
                 ->whereHas('order', function ($q) use ($client, $excluded) {
                     $q->where('client_id', $client->id)
                       ->whereNotIn('status', $excluded);
