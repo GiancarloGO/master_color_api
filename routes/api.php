@@ -79,12 +79,12 @@ Route::prefix('client/addresses')->middleware([\App\Http\Middleware\ClientAuth::
 Route::prefix('client/orders')->middleware([\App\Http\Middleware\ClientAuth::class])->group(function () {
     Route::get('/', [ClientOrderController::class, 'index'])->name('client.orders.index');
     Route::post('/', [ClientOrderController::class, 'store'])->name('client.orders.store');
-    Route::get('/{id}', [ClientOrderController::class, 'show'])->name('client.orders.show');
-    Route::get('/{id}/track', [ClientOrderController::class, 'trackOrder'])->name('client.orders.track');
+    Route::get('/{id}', [ClientOrderController::class, 'show'])->whereNumber('id')->name('client.orders.show');
+    Route::get('/{id}/track', [ClientOrderController::class, 'trackOrder'])->whereNumber('id')->name('client.orders.track');
     // Listar productos comprados (excluyendo órdenes pendientes o canceladas)
     Route::get('/purchased-products', [ClientOrderController::class, 'purchasedProducts'])->name('client.orders.purchased-products');
-    Route::put('/{id}/cancel', [ClientOrderController::class, 'cancelOrder'])->name('client.orders.cancel');
-    Route::post('/{id}/payment', [ClientOrderController::class, 'createPayment'])->name('client.orders.payment');
+    Route::put('/{id}/cancel', [ClientOrderController::class, 'cancelOrder'])->whereNumber('id')->name('client.orders.cancel');
+    Route::post('/{id}/payment', [ClientOrderController::class, 'createPayment'])->whereNumber('id')->name('client.orders.payment');
 });
 
 /*
