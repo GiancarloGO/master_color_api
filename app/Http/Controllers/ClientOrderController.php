@@ -329,6 +329,49 @@ class ClientOrderController extends Controller
     }
 
     /**
+     * Listar productos comprados por el cliente (excluye órdenes pendientes de pago / canceladas / pago fallido)
+     */
+    public function purchasedProducts(Request $request)
+    {
+        try {
+            $client = Auth::guard('client')->user();
+
+            if (!$client) {
+                return ApiResponseClass::errorResponse('No autenticado', 401);
+            }
+
+            // Estados a excluir
+            $excluded = ['pendiente_pago', 'cancelado', 'pago_fallido'];
+
+            // Obtener detalles de órdenes válidas
+            $orderDetailsQuery = \App\Models\OrderDetail::with('product', 'order')
+                ->whereHas('order', function ($q) use ($client, $excluded) {
+                    $q->where('client_id', $client->id)
+                      ->whereNotIn('status', $excluded);
+                })
+                ->orderByDesc('created_at');
+
+            // ¿Se requiere paginación? default = true
+            $paginate = $request->query('paginate', 'true');
+            $paginate = filter_var($paginate, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            if ($paginate === false) {
+                $orderDetails = $orderDetailsQuery->get();
+            } else {
+                $perPage = intval($request->query('per_page', 10));
+                $orderDetails = $orderDetailsQuery->paginate($perPage);
+            }
+
+            return ApiResponseClass::sendResponse(
+                OrderDetailResource::collection($orderDetails),
+                'Productos comprados',
+                200
+            );
+        } catch (\Exception $e) {
+            return ApiResponseClass::errorResponse('Error al obtener productos comprados', 500, [$e->getMessage()]);
+        }
+    }
+
+    /**
      * Create payment preference for an order.
      */
     public function createPayment($id)
