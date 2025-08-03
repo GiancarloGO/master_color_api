@@ -143,7 +143,7 @@ class PaymentService
             ]);
 
             // Actualizar estado de la orden según el estado del pago
-            $this->updateOrderStatus($order, $mercadoPagoPayment['status']);
+            $this->updateOrderStatus($order, $mercadoPagoPayment['status'], $mercadoPagoPayment['id']);
 
             Log::info('Payment processed successfully via webhook', [
                 'order_id' => $order->id,
@@ -167,11 +167,15 @@ class PaymentService
     /**
      * Actualizar estado de la orden basado en el estado del pago
      */
-    private function updateOrderStatus(Order $order, string $mercadoPagoStatus): void
+    private function updateOrderStatus(Order $order, string $mercadoPagoStatus, ?string $paymentId = null): void
     {
         switch ($mercadoPagoStatus) {
             case 'approved':
-                $order->update(['status' => 'pendiente']);
+                $updateData = ['status' => 'pendiente'];
+                if ($paymentId) {
+                    $updateData['codigo_payment'] = $paymentId;
+                }
+                $order->update($updateData);
                 // Descontar stock automáticamente
                 app(StockMovementService::class)->processOrderStockReduction($order);
                 break;
@@ -326,7 +330,7 @@ class PaymentService
 
                 // Solo actualizar estado de orden si el estado del pago cambió
                 if ($statusChanged) {
-                    $this->updateOrderStatus($order, $latestPayment['status']);
+                    $this->updateOrderStatus($order, $latestPayment['status'], $latestPayment['id']);
 
                     Log::info('Payment status updated', [
                         'order_id' => $order->id,

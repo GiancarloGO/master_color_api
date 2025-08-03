@@ -6,6 +6,7 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\ClientAuthController;
 use App\Http\Controllers\ClientAddressController;
 use App\Http\Controllers\ClientOrderController;
+use App\Http\Controllers\OrderController;
 use App\Http\Controllers\ClientCartController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\StockMovementController;
@@ -134,6 +135,21 @@ Route::prefix('products')->group(function () {
 
 Route::middleware(['jwt.auth', 'check.token.version', 'admin.only'])->group(function () {
     Route::apiResource('products', ProductController::class);
+});
+
+/*
+|--------------------------------------------------------------------------
+| ORDER MANAGEMENT ROUTES (STAFF)
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(['jwt.auth', 'check.token.version'])->group(function () {
+    Route::get('orders', [OrderController::class, 'index'])->name('orders.index');
+    Route::get('orders/{id}', [OrderController::class, 'show'])->whereNumber('id')->name('orders.show');
+    Route::patch('orders/{id}/status', [OrderController::class, 'updateStatus'])->whereNumber('id')->name('orders.update-status');
+    Route::get('orders/statistics', [OrderController::class, 'getStatistics'])->name('orders.statistics');
+    Route::get('orders/status/{status}', [OrderController::class, 'getByStatus'])->name('orders.by-status');
+    Route::post('orders/search', [OrderController::class, 'search'])->name('orders.search');
 });
 
 /*

@@ -34,6 +34,24 @@ class OrderResource extends JsonResource
             'delivery_address' => $this->whenLoaded('deliveryAddress', function() {
                 return new AddressResource($this->deliveryAddress);
             }),
+            'client' => $this->whenLoaded('client', function() {
+                return [
+                    'id' => $this->client->id,
+                    'name' => $this->client->name,
+                    'email' => $this->client->email,
+                    'phone' => $this->client->phone,
+                    'client_type' => $this->client->client_type,
+                    'document_type' => $this->client->document_type,
+                    'identity_document' => $this->client->identity_document,
+                ];
+            }),
+            'user' => $this->whenLoaded('user', function() {
+                return [
+                    'id' => $this->user->id,
+                    'name' => $this->user->name,
+                    'email' => $this->user->email,
+                ];
+            }),
         ];
     }
 }
