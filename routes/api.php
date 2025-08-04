@@ -7,6 +7,7 @@ use App\Http\Controllers\ClientAuthController;
 use App\Http\Controllers\ClientAddressController;
 use App\Http\Controllers\ClientOrderController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ClientCartController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\StockMovementController;
@@ -28,6 +29,7 @@ Route::prefix('auth')->group(function () {
         Route::post('/logout', [AuthController::class, 'logout'])->name('auth.logout');
         Route::post('/refresh', [AuthController::class, 'refresh'])->name('auth.refresh');
         Route::post('/me', [AuthController::class, 'me'])->name('auth.me');
+        Route::post('/change-password', [AuthController::class, 'changePassword'])->name('auth.change-password');
     });
 });
 
@@ -135,6 +137,21 @@ Route::prefix('products')->group(function () {
 
 Route::middleware(['jwt.auth', 'check.token.version', 'admin.only'])->group(function () {
     Route::apiResource('products', ProductController::class);
+});
+
+/*
+|--------------------------------------------------------------------------
+| DASHBOARD ROUTES (STAFF)
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(['jwt.auth', 'check.token.version'])->group(function () {
+    Route::get('dashboard/overview', [DashboardController::class, 'overview'])->name('dashboard.overview');
+    Route::get('dashboard/sales', [DashboardController::class, 'salesAnalytics'])->name('dashboard.sales');
+    Route::get('dashboard/inventory', [DashboardController::class, 'inventoryAnalytics'])->name('dashboard.inventory');
+    Route::get('dashboard/customers', [DashboardController::class, 'customerAnalytics'])->name('dashboard.customers');
+    Route::get('dashboard/financial', [DashboardController::class, 'financialAnalytics'])->name('dashboard.financial');
+    Route::get('dashboard/performance', [DashboardController::class, 'performanceMetrics'])->name('dashboard.performance');
 });
 
 /*
