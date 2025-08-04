@@ -182,6 +182,18 @@ Route::middleware(['jwt.auth', 'check.token.version', 'admin.only'])->group(func
 
 /*
 |--------------------------------------------------------------------------
+| REPORT ROUTES (STAFF)
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(['jwt.auth', 'check.token.version'])->group(function () {
+    Route::post('reports/sales', [App\Http\Controllers\ReportController::class, 'salesReport'])->name('reports.sales');
+    Route::post('reports/purchases', [App\Http\Controllers\ReportController::class, 'purchasesReport'])->name('reports.purchases');
+    Route::post('reports/orders', [App\Http\Controllers\ReportController::class, 'ordersReport'])->name('reports.orders');
+});
+
+/*
+|--------------------------------------------------------------------------
 | WEBHOOK ROUTES
 |--------------------------------------------------------------------------
 */
