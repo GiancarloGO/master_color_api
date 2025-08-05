@@ -8,15 +8,16 @@ Master Color API is a Laravel 12 REST API for inventory management and e-commerc
 
 ## Key Technologies
 
-- **Laravel 12** with PHP 8.2+
-- **JWT Authentication** (`tymon/jwt-auth`)
-- **MySQL 8.0+** database
-- **PestPHP** for testing
-- **Vite** with TailwindCSS for frontend assets
+-   **Laravel 12** with PHP 8.2+
+-   **JWT Authentication** (`tymon/jwt-auth`)
+-   **Postgresql** database
+-   **PestPHP** for testing
+-   **Vite** with TailwindCSS for frontend assets
 
 ## Development Commands
 
 ### Setup and Installation
+
 ```bash
 # Initial setup
 composer install && npm install
@@ -35,6 +36,7 @@ npm run dev
 ```
 
 ### Testing and Code Quality
+
 ```bash
 # Run tests
 composer test
@@ -54,6 +56,7 @@ php artisan cache:clear
 ```
 
 ### Build and Deployment
+
 ```bash
 # Production build
 npm run build
@@ -65,53 +68,66 @@ php artisan view:cache
 ## Architecture Overview
 
 ### Authentication System
-- **Dual JWT Authentication**: Separate systems for staff users (`/api/auth/`) and clients (`/api/client/auth/`)
-- **Role-based Access**: Admin, Seller, Warehouse staff roles
-- **JWT Guards**: `api` for staff, `client` for customers
+
+-   **Dual JWT Authentication**: Separate systems for staff users (`/api/auth/`) and clients (`/api/client/auth/`)
+-   **Role-based Access**: Admin, Seller, Warehouse staff roles
+-   **JWT Guards**: `api` for staff, `client` for customers
 
 ### Service Layer Pattern
+
 Business logic is centralized in service classes:
-- `ProductService`: Product management and validation
-- `StockService`: Inventory operations and stock movements
-- `FileUploadService`: Image upload handling
-- `OrderService`: Order processing and status management
+
+-   `ProductService`: Product management and validation
+-   `StockService`: Inventory operations and stock movements
+-   `FileUploadService`: Image upload handling
+-   `OrderService`: Order processing and status management
 
 ### Database Structure
+
 **Core Models with Relationships:**
-- `User` (staff) ↔ `Role` (many-to-many)
-- `Client` (customers) ↔ `Address` (one-to-many)
-- `Product` ↔ `Stock` (one-to-one)
-- `Order` ↔ `OrderDetail` (one-to-many)
-- `StockMovement` ↔ `StockMovementDetail` (one-to-many)
+
+-   `User` (staff) ↔ `Role` (many-to-many)
+-   `Client` (customers) ↔ `Address` (one-to-many)
+-   `Product` ↔ `Stock` (one-to-one)
+-   `Order` ↔ `OrderDetail` (one-to-many)
+-   `StockMovement` ↔ `StockMovementDetail` (one-to-many)
 
 ### API Response Format
+
 All responses use `ApiResponseClass` for consistency:
+
 ```php
 // Success: ApiResponseClass::sendResponse($data, $message, $code)
 // Error: ApiResponseClass::sendError($message, $errors, $code)
 ```
 
 ### Key Directories
-- `app/Services/`: Business logic services
-- `app/Http/Controllers/`: API controllers grouped by functionality
-- `app/Http/Resources/`: Response transformers
-- `app/Http/Requests/`: Validation request classes
-- `app/Models/`: Eloquent models with relationships
-- `database/seeders/`: Default data including roles and sample products
+
+-   `app/Services/`: Business logic services
+-   `app/Http/Controllers/`: API controllers grouped by functionality
+-   `app/Http/Resources/`: Response transformers
+-   `app/Http/Requests/`: Validation request classes
+-   `app/Models/`: Eloquent models with relationships
+-   `database/seeders/`: Default data including roles and sample products
 
 ## Development Notes
 
 ### File Upload Handling
+
 Images are processed via `FileUploadService` with validation and storage management in `/storage/app/public/`.
 
 ### Stock Management
+
 Stock movements are tracked through `StockMovement` and `StockMovementDetail` models. All inventory changes create audit trails.
 
 ### API Documentation
+
 Swagger documentation available at `/api/documentation` when running locally.
 
 ### Testing
+
 Uses PestPHP for testing. Test files follow the pattern `tests/Feature/` for integration tests and `tests/Unit/` for unit tests.
 
 ### Database Seeding
+
 Run `php artisan migrate --seed` to populate default roles, users, and sample products for development.

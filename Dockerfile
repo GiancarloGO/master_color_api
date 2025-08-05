@@ -9,16 +9,32 @@ RUN apt-get update && apt-get install -y \
     libonig-dev \
     libxml2-dev \
     libpq-dev \
+    libzip-dev \
     zip \
     unzip \
     nodejs \
-    npm
+    npm \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# Limpiar caché
-RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+# Instalar extensiones PHP necesarias para Laravel 12 y JWT
+RUN docker-php-ext-install \
+    pdo \
+    pdo_pgsql \
+    mbstring \
+    exif \
+    pcntl \
+    bcmath \
+    gd \
+    zip \
+    opcache
 
-# Instalar extensiones PHP
-RUN docker-php-ext-install pdo pdo_pgsql mbstring exif pcntl bcmath gd
+# Configurar opcache para producción
+RUN echo 'opcache.memory_consumption=128' >> /usr/local/etc/php/conf.d/opcache.ini \
+    && echo 'opcache.interned_strings_buffer=8' >> /usr/local/etc/php/conf.d/opcache.ini \
+    && echo 'opcache.max_accelerated_files=4000' >> /usr/local/etc/php/conf.d/opcache.ini \
+    && echo 'opcache.revalidate_freq=2' >> /usr/local/etc/php/conf.d/opcache.ini \
+    && echo 'opcache.fast_shutdown=1' >> /usr/local/etc/php/conf.d/opcache.ini
 
 # Instalar Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
@@ -28,24 +44,34 @@ RUN a2enmod rewrite
 
 # Configurar DocumentRoot
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
-
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
 
 # Establecer directorio de trabajo
 WORKDIR /var/www/html
 
-# Copiar archivos del proyecto
+# Copiar composer files primero para aprovechar cache de Docker
+COPY composer.json composer.lock ./
+
+# Instalar dependencias de Composer (sin vendor del host)
+RUN composer install --no-dev --optimize-autoloader --no-scripts --no-autoloader
+
+# Copiar el resto de archivos del proyecto (excluyendo vendor y node_modules)
 COPY . /var/www/html
 
-# Instalar dependencias de Composer
-RUN composer install --optimize-autoloader --no-dev
+# Completar instalación de composer con scripts
+RUN composer dump-autoload --optimize
 
-# Instalar dependencias de NPM si existe package.json
-RUN if [ -f package.json ]; then npm install && npm run build; fi
+# Instalar dependencias de NPM y hacer build
+RUN if [ -f package.json ]; then \
+        npm ci --only=production && \
+        npm run build && \
+        rm -rf node_modules; \
+    fi
 
-# Establecer permisos
-RUN chown -R www-data:www-data /var/www/html \
+# Crear directorios necesarios y establecer permisos
+RUN mkdir -p storage/logs storage/framework/{cache,sessions,views} bootstrap/cache \
+    && chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html/storage \
     && chmod -R 755 /var/www/html/bootstrap/cache
 
