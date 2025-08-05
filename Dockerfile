@@ -12,10 +12,12 @@ RUN apt-get update && apt-get install -y \
     libzip-dev \
     zip \
     unzip \
-    nodejs \
-    npm \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Instalar Node.js 20 LTS desde NodeSource
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs
 
 # Instalar extensiones PHP necesarias para Laravel 12 y JWT
 RUN docker-php-ext-install \
@@ -64,7 +66,7 @@ RUN composer dump-autoload --optimize
 
 # Instalar dependencias de NPM y hacer build
 RUN if [ -f package.json ]; then \
-        npm ci --only=production && \
+        npm ci && \
         npm run build && \
         rm -rf node_modules; \
     fi
