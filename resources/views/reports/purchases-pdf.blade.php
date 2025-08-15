@@ -95,11 +95,11 @@
         </div>
         <div class="summary-item">
             <h4>Monto Total</h4>
-            <p>${{ number_format($total_amount, 2) }}</p>
+            <p>S/. {{ number_format($total_amount, 2) }}</p>
         </div>
         <div class="summary-item">
             <h4>Promedio por Compra</h4>
-            <p>${{ $total_orders > 0 ? number_format($total_amount / $total_orders, 2) : '0.00' }}</p>
+            <p>S/. {{ $total_orders > 0 ? number_format($total_amount / $total_orders, 2) : '0.00' }}</p>
         </div>
     </div>
 
@@ -120,16 +120,16 @@
             <tr>
                 <td>{{ $order->id }}</td>
                 <td>{{ $order->created_at->format('d/m/Y') }}</td>
-                <td>{{ $order->client->name ?? 'N/A' }}</td>
-                <td>{{ $order->client->email ?? 'N/A' }}</td>
+                <td>{{ $order->client->name ?? 'Cliente no registrado' }}</td>
+                <td>{{ $order->client->email ?? 'Sin email' }}</td>
                 <td>{{ ucfirst($order->status) }}</td>
                 <td>{{ $order->orderDetails->sum('quantity') }} items</td>
-                <td>${{ number_format($order->total, 2) }}</td>
+                <td>S/. {{ number_format($order->total, 2) }}</td>
             </tr>
             @endforeach
             <tr class="total-row">
                 <td colspan="6"><strong>TOTAL</strong></td>
-                <td><strong>${{ number_format($orders->sum('total'), 2) }}</strong></td>
+                <td><strong>S/. {{ number_format($orders->sum('total'), 2) }}</strong></td>
             </tr>
         </tbody>
     </table>

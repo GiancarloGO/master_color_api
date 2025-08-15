@@ -104,7 +104,7 @@
         </div>
         <div class="summary-item">
             <h4>Monto Total</h4>
-            <p>${{ number_format($total_amount, 2) }}</p>
+            <p>S/. {{ number_format($total_amount, 2) }}</p>
         </div>
         <div class="summary-item">
             <h4>Items Total</h4>
@@ -133,23 +133,23 @@
             <tr>
                 <td>{{ $order->id }}</td>
                 <td>{{ $order->created_at->format('d/m/Y') }}</td>
-                <td>{{ $order->client->name ?? 'N/A' }}</td>
-                <td>{{ $order->user->name ?? 'N/A' }}</td>
+                <td>{{ $order->client->name ?? 'Cliente no registrado' }}</td>
+                <td>{{ $order->user->name ?? 'Sin asignar' }}</td>
                 <td class="status-{{ $order->status }}">{{ ucfirst($order->status) }}</td>
                 <td>{{ $order->orderDetails->sum('quantity') }}</td>
-                <td>${{ number_format($order->subtotal, 2) }}</td>
-                <td>${{ number_format($order->shipping_cost, 2) }}</td>
-                <td>${{ number_format($order->discount, 2) }}</td>
-                <td>${{ number_format($order->total, 2) }}</td>
-                <td>{{ Str::limit($order->observations ?? 'N/A', 30) }}</td>
+                <td>S/. {{ number_format($order->subtotal, 2) }}</td>
+                <td>S/. {{ number_format($order->shipping_cost, 2) }}</td>
+                <td>S/. {{ number_format($order->discount, 2) }}</td>
+                <td>S/. {{ number_format($order->total, 2) }}</td>
+                <td>{{ Str::limit($order->observations ?? 'Sin observaciones', 30) }}</td>
             </tr>
             @endforeach
             <tr class="total-row">
                 <td colspan="6"><strong>TOTAL</strong></td>
-                <td><strong>${{ number_format($orders->sum('subtotal'), 2) }}</strong></td>
-                <td><strong>${{ number_format($orders->sum('shipping_cost'), 2) }}</strong></td>
-                <td><strong>${{ number_format($orders->sum('discount'), 2) }}</strong></td>
-                <td><strong>${{ number_format($orders->sum('total'), 2) }}</strong></td>
+                <td><strong>S/. {{ number_format($orders->sum('subtotal'), 2) }}</strong></td>
+                <td><strong>S/. {{ number_format($orders->sum('shipping_cost'), 2) }}</strong></td>
+                <td><strong>S/. {{ number_format($orders->sum('discount'), 2) }}</strong></td>
+                <td><strong>S/. {{ number_format($orders->sum('total'), 2) }}</strong></td>
                 <td></td>
             </tr>
         </tbody>

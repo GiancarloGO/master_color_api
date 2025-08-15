@@ -50,22 +50,22 @@ class OrdersExport implements FromCollection, WithHeadings, WithMapping, WithSty
         $itemsCount = $order->orderDetails->sum('quantity');
         $deliveryAddress = $order->deliveryAddress 
             ? $order->deliveryAddress->street . ', ' . $order->deliveryAddress->city 
-            : 'N/A';
+            : 'Sin dirección';
 
         return [
             $order->id,
             $order->created_at->format('d/m/Y H:i:s'),
-            $order->client->name ?? 'N/A',
-            $order->user->name ?? 'N/A',
+            $order->client->name ?? 'Cliente no registrado',
+            $order->user->name ?? 'Sin asignar',
             ucfirst($order->status),
-            '$' . number_format($order->subtotal, 2),
-            '$' . number_format($order->shipping_cost, 2),
-            '$' . number_format($order->discount, 2),
-            '$' . number_format($order->total, 2),
+            'S/. ' . number_format($order->subtotal, 2),
+            'S/. ' . number_format($order->shipping_cost, 2),
+            'S/. ' . number_format($order->discount, 2),
+            'S/. ' . number_format($order->total, 2),
             $itemsCount . ' items',
             $deliveryAddress,
-            $order->observations ?? 'N/A',
-            $order->codigo_payment ?? 'N/A'
+            $order->observations ?? 'Sin observaciones',
+            $order->codigo_payment ?? 'Sin código'
         ];
     }
 

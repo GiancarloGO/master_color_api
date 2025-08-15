@@ -48,22 +48,22 @@ class PurchasesExport implements FromCollection, WithHeadings, WithMapping, With
     public function map($order): array
     {
         $products = $order->orderDetails->map(function ($detail) {
-            return $detail->product->name . ' (Cantidad: ' . $detail->quantity . ', Precio: $' . number_format($detail->price, 2) . ')';
+            return $detail->product->name . ' (Cantidad: ' . $detail->quantity . ', Precio: S/. ' . number_format($detail->price, 2) . ')';
         })->join(' | ');
 
         return [
             $order->id,
             $order->created_at->format('d/m/Y H:i'),
-            $order->client->name ?? 'N/A',
-            $order->client->email ?? 'N/A',
-            $order->client->phone ?? 'N/A',
+            $order->client->name ?? 'Cliente no registrado',
+            $order->client->email ?? 'Sin email',
+            $order->client->phone ?? 'Sin teléfono',
             ucfirst($order->client->client_type ?? 'individual'),
             ucfirst($order->status),
-            '$' . number_format($order->subtotal, 2),
-            '$' . number_format($order->shipping_cost, 2),
-            '$' . number_format($order->discount, 2),
-            '$' . number_format($order->total, 2),
-            $order->codigo_payment ?? 'N/A',
+            'S/. ' . number_format($order->subtotal, 2),
+            'S/. ' . number_format($order->shipping_cost, 2),
+            'S/. ' . number_format($order->discount, 2),
+            'S/. ' . number_format($order->total, 2),
+            $order->codigo_payment ?? 'Sin código',
             $products
         ];
     }

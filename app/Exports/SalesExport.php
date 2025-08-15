@@ -53,16 +53,16 @@ class SalesExport implements FromCollection, WithHeadings, WithMapping, WithStyl
         return [
             $order->id,
             $order->created_at->format('d/m/Y H:i'),
-            $order->client->name ?? 'N/A',
-            $order->client->email ?? 'N/A',
-            $order->user->name ?? 'N/A',
+            $order->client->name ?? 'Cliente no registrado',
+            $order->client->email ?? 'Sin email',
+            $order->user->name ?? 'Sin asignar',
             ucfirst($order->status),
-            number_format($order->subtotal, 2),
-            number_format($order->shipping_cost, 2),
-            number_format($order->discount, 2),
-            number_format($order->total, 2),
+            'S/. ' . number_format($order->subtotal, 2),
+            'S/. ' . number_format($order->shipping_cost, 2),
+            'S/. ' . number_format($order->discount, 2),
+            'S/. ' . number_format($order->total, 2),
             $products,
-            $order->codigo_payment ?? 'N/A'
+            $order->codigo_payment ?? 'Sin código'
         ];
     }
 

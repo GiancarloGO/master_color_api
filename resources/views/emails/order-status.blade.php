@@ -14,11 +14,11 @@ Te escribimos para informarte que el estado de tu pedido ha cambiado:
 
 **Número de pedido:** #{{ $order->id }}  
 **Fecha de pedido:** {{ $order->created_at->format('d/m/Y H:i') }}  
-**Total:** ${{ number_format($order->total, 2) }}
+**Total:** S/. {{ number_format($order->total, 2) }}
 
 ### Productos
 @foreach($order->orderDetails as $detail)
-- {{ $detail->product->name }} x{{ $detail->quantity }} - ${{ number_format($detail->subtotal, 2) }}
+- {{ $detail->product->name }} x{{ $detail->quantity }} - S/. {{ number_format($detail->subtotal, 2) }}
 @endforeach
 
 @if($order->observations)
