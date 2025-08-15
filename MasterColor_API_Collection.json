@@ -1,0 +1,1819 @@
+{
+	"info": {
+		"_postman_id": "master-color-api-collection",
+		"name": "Master Color API - Complete Collection",
+		"description": "Colección completa de endpoints para la API Master Color - Sistema de gestión de inventario y e-commerce de pinturas",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "https://master-color-api.onrender.com/api",
+			"type": "string"
+		},
+		{
+			"key": "staff_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "client_token",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "🔐 Authentication - Staff",
+			"description": "Autenticación para personal administrativo (admin, vendedor, almacén)",
+			"item": [
+				{
+					"name": "Register Staff User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Juan Pérez\",\n    \"email\": \"juan@mastercolor.com\",\n    \"password\": \"password123\",\n    \"password_confirmation\": \"password123\",\n    \"role_ids\": [1]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/register",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "register"]
+						},
+						"description": "Registra un nuevo usuario del staff. Requiere permisos de administrador. Los role_ids disponibles son: 1=Admin, 2=Seller, 3=Warehouse"
+					}
+				},
+				{
+					"name": "Login Staff",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    if (response.data && response.data.access_token) {",
+									"        pm.collectionVariables.set('staff_token', response.data.access_token);",
+									"    }",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"admin@mastercolor.com\",\n    \"password\": \"admin123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "login"]
+						},
+						"description": "Autenticación de staff. Retorna JWT token que se guarda automáticamente en la variable staff_token"
+					}
+				},
+				{
+					"name": "Get Staff Profile",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/auth/me",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "me"]
+						},
+						"description": "Obtiene información del usuario staff autenticado"
+					}
+				},
+				{
+					"name": "Change Staff Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"current_password\": \"admin123\",\n    \"new_password\": \"newpassword123\",\n    \"new_password_confirmation\": \"newpassword123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/change-password",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "change-password"]
+						},
+						"description": "Cambia la contraseña del usuario staff autenticado"
+					}
+				},
+				{
+					"name": "Refresh Staff Token",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/auth/refresh",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "refresh"]
+						},
+						"description": "Renueva el token JWT del staff"
+					}
+				},
+				{
+					"name": "Logout Staff",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/auth/logout",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "logout"]
+						},
+						"description": "Cierra sesión y invalida el token del staff"
+					}
+				}
+			]
+		},
+		{
+			"name": "👤 Authentication - Client",
+			"description": "Autenticación para clientes del e-commerce",
+			"item": [
+				{
+					"name": "Register Client",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"María\",\n    \"lastname\": \"García\",\n    \"email\": \"maria@email.com\",\n    \"password\": \"password123\",\n    \"password_confirmation\": \"password123\",\n    \"phone\": \"987654321\",\n    \"client_type\": \"individual\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/client/auth/register",
+							"host": ["{{base_url}}"],
+							"path": ["client", "auth", "register"]
+						},
+						"description": "Registra un nuevo cliente. client_type puede ser: individual, business"
+					}
+				},
+				{
+					"name": "Login Client",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    if (response.data && response.data.access_token) {",
+									"        pm.collectionVariables.set('client_token', response.data.access_token);",
+									"    }",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"cliente@email.com\",\n    \"password\": \"password123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/client/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["client", "auth", "login"]
+						},
+						"description": "Autenticación de cliente. Retorna JWT token que se guarda automáticamente"
+					}
+				},
+				{
+					"name": "Verify Email",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"cliente@email.com\",\n    \"verification_code\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/client/auth/verify-email",
+							"host": ["{{base_url}}"],
+							"path": ["client", "auth", "verify-email"]
+						},
+						"description": "Verifica el email del cliente con el código enviado por correo"
+					}
+				},
+				{
+					"name": "Forgot Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"cliente@email.com\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/client/auth/forgot-password",
+							"host": ["{{base_url}}"],
+							"path": ["client", "auth", "forgot-password"]
+						},
+						"description": "Envía email con enlace para restablecer contraseña"
+					}
+				},
+				{
+					"name": "Reset Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"cliente@email.com\",\n    \"token\": \"reset_token_here\",\n    \"password\": \"newpassword123\",\n    \"password_confirmation\": \"newpassword123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/client/auth/reset-password",
+							"host": ["{{base_url}}"],
+							"path": ["client", "auth", "reset-password"]
+						},
+						"description": "Restablece la contraseña usando el token enviado por email"
+					}
+				},
+				{
+					"name": "Get Client Profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/client/auth/profile",
+							"host": ["{{base_url}}"],
+							"path": ["client", "auth", "profile"]
+						},
+						"description": "Obtiene el perfil completo del cliente autenticado"
+					}
+				},
+				{
+					"name": "Update Client Profile",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"María Actualizada\",\n    \"lastname\": \"García López\",\n    \"phone\": \"987654322\",\n    \"client_type\": \"business\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/client/auth/profile",
+							"host": ["{{base_url}}"],
+							"path": ["client", "auth", "profile"]
+						},
+						"description": "Actualiza la información del perfil del cliente"
+					}
+				}
+			]
+		},
+		{
+			"name": "🏠 Client Addresses",
+			"description": "Gestión de direcciones de entrega del cliente",
+			"item": [
+				{
+					"name": "Get All Addresses",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/client/addresses",
+							"host": ["{{base_url}}"],
+							"path": ["client", "addresses"]
+						},
+						"description": "Lista todas las direcciones del cliente autenticado"
+					}
+				},
+				{
+					"name": "Create Address",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"address_full\": \"Av. Los Olivos 123\",\n    \"district\": \"San Isidro\",\n    \"province\": \"Lima\",\n    \"department\": \"Lima\",\n    \"postal_code\": \"15036\",\n    \"reference\": \"Frente al parque\",\n    \"is_main\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/client/addresses",
+							"host": ["{{base_url}}"],
+							"path": ["client", "addresses"]
+						},
+						"description": "Crea una nueva dirección para el cliente"
+					}
+				},
+				{
+					"name": "Get Address Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/client/addresses/1",
+							"host": ["{{base_url}}"],
+							"path": ["client", "addresses", "1"]
+						},
+						"description": "Obtiene los detalles de una dirección específica"
+					}
+				},
+				{
+					"name": "Update Address",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"address_full\": \"Av. Los Olivos 456\",\n    \"district\": \"Miraflores\",\n    \"province\": \"Lima\",\n    \"department\": \"Lima\",\n    \"postal_code\": \"15074\",\n    \"reference\": \"Al lado del centro comercial\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/client/addresses/1",
+							"host": ["{{base_url}}"],
+							"path": ["client", "addresses", "1"]
+						},
+						"description": "Actualiza una dirección existente"
+					}
+				},
+				{
+					"name": "Set Main Address",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/client/addresses/1/set-main",
+							"host": ["{{base_url}}"],
+							"path": ["client", "addresses", "1", "set-main"]
+						},
+						"description": "Establece una dirección como principal"
+					}
+				},
+				{
+					"name": "Delete Address",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/client/addresses/1",
+							"host": ["{{base_url}}"],
+							"path": ["client", "addresses", "1"]
+						},
+						"description": "Elimina una dirección (no se puede eliminar la dirección principal)"
+					}
+				}
+			]
+		},
+		{
+			"name": "🛒 Shopping Cart",
+			"description": "Gestión del carrito de compras del cliente",
+			"item": [
+				{
+					"name": "View Cart",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/client/cart",
+							"host": ["{{base_url}}"],
+							"path": ["client", "cart"]
+						},
+						"description": "Muestra el contenido del carrito del cliente con totales calculados"
+					}
+				},
+				{
+					"name": "Add to Cart",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"product_id\": 1,\n    \"quantity\": 2\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/client/cart/add",
+							"host": ["{{base_url}}"],
+							"path": ["client", "cart", "add"]
+						},
+						"description": "Agrega un producto al carrito o incrementa la cantidad si ya existe"
+					}
+				},
+				{
+					"name": "Update Cart Quantity",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"quantity\": 5\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/client/cart/update/1",
+							"host": ["{{base_url}}"],
+							"path": ["client", "cart", "update", "1"]
+						},
+						"description": "Actualiza la cantidad de un producto específico en el carrito"
+					}
+				},
+				{
+					"name": "Remove from Cart",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/client/cart/remove/1",
+							"host": ["{{base_url}}"],
+							"path": ["client", "cart", "remove", "1"]
+						},
+						"description": "Elimina un producto específico del carrito"
+					}
+				},
+				{
+					"name": "Clear Cart",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/client/cart/clear",
+							"host": ["{{base_url}}"],
+							"path": ["client", "cart", "clear"]
+						},
+						"description": "Vacía completamente el carrito del cliente"
+					}
+				}
+			]
+		},
+		{
+			"name": "🎨 Products",
+			"description": "Gestión de productos y catálogo",
+			"item": [
+				{
+					"name": "Get Public Products",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/products/public?page=1&per_page=10&search=pintura&category=interior",
+							"host": ["{{base_url}}"],
+							"path": ["products", "public"],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "per_page",
+									"value": "10"
+								},
+								{
+									"key": "search",
+									"value": "pintura"
+								},
+								{
+									"key": "category",
+									"value": "interior"
+								}
+							]
+						},
+						"description": "Lista productos públicos con paginación y filtros. No requiere autenticación."
+					}
+				},
+				{
+					"name": "Get All Products (Staff)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/products",
+							"host": ["{{base_url}}"],
+							"path": ["products"]
+						},
+						"description": "Lista todos los productos (solo staff). Incluye productos inactivos."
+					}
+				},
+				{
+					"name": "Create Product",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Pintura Interior Premium\",\n    \"description\": \"Pintura de alta calidad para interiores\",\n    \"price\": 89.90,\n    \"category\": \"interior\",\n    \"brand\": \"Master Color\",\n    \"color\": \"Blanco\",\n    \"size\": \"4L\",\n    \"is_active\": true,\n    \"stock_quantity\": 50,\n    \"stock_min\": 10\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/products",
+							"host": ["{{base_url}}"],
+							"path": ["products"]
+						},
+						"description": "Crea un nuevo producto (solo admin)"
+					}
+				},
+				{
+					"name": "Get Product Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/products/1",
+							"host": ["{{base_url}}"],
+							"path": ["products", "1"]
+						},
+						"description": "Obtiene detalles de un producto específico"
+					}
+				},
+				{
+					"name": "Update Product",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Pintura Interior Premium Actualizada\",\n    \"description\": \"Pintura de alta calidad para interiores - Fórmula mejorada\",\n    \"price\": 95.90,\n    \"is_active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/products/1",
+							"host": ["{{base_url}}"],
+							"path": ["products", "1"]
+						},
+						"description": "Actualiza un producto existente (solo admin)"
+					}
+				},
+				{
+					"name": "Update Product with Image",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "name",
+									"value": "Pintura con Imagen",
+									"type": "text"
+								},
+								{
+									"key": "price",
+									"value": "120.00",
+									"type": "text"
+								},
+								{
+									"key": "image",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{base_url}}/products/updateProduct/1",
+							"host": ["{{base_url}}"],
+							"path": ["products", "updateProduct", "1"]
+						},
+						"description": "Actualiza producto incluyendo imagen (multipart/form-data)"
+					}
+				},
+				{
+					"name": "Delete Product",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/products/1",
+							"host": ["{{base_url}}"],
+							"path": ["products", "1"]
+						},
+						"description": "Elimina un producto (soft delete - solo admin)"
+					}
+				}
+			]
+		},
+		{
+			"name": "📦 Client Orders",
+			"description": "Gestión de órdenes desde la perspectiva del cliente",
+			"item": [
+				{
+					"name": "Get Client Orders",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/client/orders?status=confirmado&page=1",
+							"host": ["{{base_url}}"],
+							"path": ["client", "orders"],
+							"query": [
+								{
+									"key": "status",
+									"value": "confirmado"
+								},
+								{
+									"key": "page",
+									"value": "1"
+								}
+							]
+						},
+						"description": "Lista las órdenes del cliente autenticado con filtros opcionales"
+					}
+				},
+				{
+					"name": "Create Order",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"delivery_address_id\": 1,\n    \"observations\": \"Entregar en horario de oficina\",\n    \"shipping_cost\": 15.00,\n    \"discount\": 5.00\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/client/orders",
+							"host": ["{{base_url}}"],
+							"path": ["client", "orders"]
+						},
+						"description": "Crea una nueva orden basada en el carrito actual del cliente"
+					}
+				},
+				{
+					"name": "Get Order Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/client/orders/1",
+							"host": ["{{base_url}}"],
+							"path": ["client", "orders", "1"]
+						},
+						"description": "Obtiene detalles completos de una orden específica del cliente"
+					}
+				},
+				{
+					"name": "Track Order",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/client/orders/1/track",
+							"host": ["{{base_url}}"],
+							"path": ["client", "orders", "1", "track"]
+						},
+						"description": "Obtiene información de seguimiento de la orden"
+					}
+				},
+				{
+					"name": "Cancel Order",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"reason\": \"Cambié de opinión sobre el pedido\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/client/orders/1/cancel",
+							"host": ["{{base_url}}"],
+							"path": ["client", "orders", "1", "cancel"]
+						},
+						"description": "Cancela una orden (solo si está en estado cancelable)"
+					}
+				},
+				{
+					"name": "Create Payment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"payment_method\": \"mercadopago\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/client/orders/1/payment",
+							"host": ["{{base_url}}"],
+							"path": ["client", "orders", "1", "payment"]
+						},
+						"description": "Crea un pago para la orden usando MercadoPago. Retorna URL de pago."
+					}
+				},
+				{
+					"name": "Get Purchased Products",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/client/orders/purchased-products",
+							"host": ["{{base_url}}"],
+							"path": ["client", "orders", "purchased-products"]
+						},
+						"description": "Lista todos los productos que el cliente ha comprado exitosamente"
+					}
+				}
+			]
+		},
+		{
+			"name": "🏢 Staff Order Management",
+			"description": "Gestión de órdenes desde la perspectiva del staff",
+			"item": [
+				{
+					"name": "Get All Orders",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/orders?status=pendiente&client_id=1&paginate=true&per_page=15",
+							"host": ["{{base_url}}"],
+							"path": ["orders"],
+							"query": [
+								{
+									"key": "status",
+									"value": "pendiente"
+								},
+								{
+									"key": "client_id",
+									"value": "1"
+								},
+								{
+									"key": "paginate",
+									"value": "true"
+								},
+								{
+									"key": "per_page",
+									"value": "15"
+								}
+							]
+						},
+						"description": "Lista todas las órdenes con filtros. Disponible para todo el staff."
+					}
+				},
+				{
+					"name": "Get Order Details (Staff)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/orders/1",
+							"host": ["{{base_url}}"],
+							"path": ["orders", "1"]
+						},
+						"description": "Obtiene detalles completos de una orden (staff view)"
+					}
+				},
+				{
+					"name": "Update Order Status",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"procesando\",\n    \"observations\": \"Orden en preparación\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/orders/1/status",
+							"host": ["{{base_url}}"],
+							"path": ["orders", "1", "status"]
+						},
+						"description": "Actualiza el estado de una orden. Estados: pendiente_pago, pendiente, confirmado, procesando, enviado, entregado, cancelado, pago_fallido. Envía email automático al cliente."
+					}
+				},
+				{
+					"name": "Get Orders by Status",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/orders/status/pendiente",
+							"host": ["{{base_url}}"],
+							"path": ["orders", "status", "pendiente"]
+						},
+						"description": "Obtiene todas las órdenes filtradas por estado específico"
+					}
+				},
+				{
+					"name": "Search Orders",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"search\": \"maria\",\n    \"search_type\": \"client_name\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/orders/search",
+							"host": ["{{base_url}}"],
+							"path": ["orders", "search"]
+						},
+						"description": "Busca órdenes por varios criterios. search_type: order_id, client_name, client_email, all"
+					}
+				},
+				{
+					"name": "Get Order Statistics",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/orders/statistics",
+							"host": ["{{base_url}}"],
+							"path": ["orders", "statistics"]
+						},
+						"description": "Obtiene estadísticas generales de órdenes para dashboard"
+					}
+				}
+			]
+		},
+		{
+			"name": "📊 Reports",
+			"description": "Generación de reportes en PDF y Excel",
+			"item": [
+				{
+					"name": "Sales Report",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"format\": \"pdf\",\n    \"start_date\": \"2024-01-01\",\n    \"end_date\": \"2024-12-31\",\n    \"client_id\": null,\n    \"user_id\": null,\n    \"status\": \"entregado\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/reports/sales",
+							"host": ["{{base_url}}"],
+							"path": ["reports", "sales"]
+						},
+						"description": "Genera reporte de ventas. format: pdf o excel. Todos los filtros son opcionales."
+					}
+				},
+				{
+					"name": "Purchases Report",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"format\": \"excel\",\n    \"start_date\": \"2024-01-01\",\n    \"end_date\": \"2024-12-31\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/reports/purchases",
+							"host": ["{{base_url}}"],
+							"path": ["reports", "purchases"]
+						},
+						"description": "Genera reporte de compras desde perspectiva del cliente"
+					}
+				},
+				{
+					"name": "Orders Report",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"format\": \"pdf\",\n    \"start_date\": \"2024-06-01\",\n    \"end_date\": \"2024-06-30\",\n    \"status\": \"confirmado\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/reports/orders",
+							"host": ["{{base_url}}"],
+							"path": ["reports", "orders"]
+						},
+						"description": "Genera reporte general de órdenes con resumen detallado"
+					}
+				}
+			]
+		},
+		{
+			"name": "📈 Dashboard",
+			"description": "Analytics y métricas para el dashboard administrativo",
+			"item": [
+				{
+					"name": "Dashboard Overview",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/dashboard/overview",
+							"host": ["{{base_url}}"],
+							"path": ["dashboard", "overview"]
+						},
+						"description": "Métricas generales del negocio para la vista principal del dashboard"
+					}
+				},
+				{
+					"name": "Sales Analytics",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/dashboard/sales",
+							"host": ["{{base_url}}"],
+							"path": ["dashboard", "sales"]
+						},
+						"description": "Análisis detallado de ventas, tendencias y comparaciones"
+					}
+				},
+				{
+					"name": "Inventory Analytics",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/dashboard/inventory",
+							"host": ["{{base_url}}"],
+							"path": ["dashboard", "inventory"]
+						},
+						"description": "Estado del inventario, productos con bajo stock, rotación"
+					}
+				},
+				{
+					"name": "Customer Analytics",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/dashboard/customers",
+							"host": ["{{base_url}}"],
+							"path": ["dashboard", "customers"]
+						},
+						"description": "Análisis de clientes, nuevos registros, comportamiento de compra"
+					}
+				},
+				{
+					"name": "Financial Analytics",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/dashboard/financial",
+							"host": ["{{base_url}}"],
+							"path": ["dashboard", "financial"]
+						},
+						"description": "Métricas financieras, ingresos, márgenes, rentabilidad"
+					}
+				}
+			]
+		},
+		{
+			"name": "👥 User Management",
+			"description": "Gestión de usuarios del staff (solo admin)",
+			"item": [
+				{
+					"name": "Get All Users",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/users",
+							"host": ["{{base_url}}"],
+							"path": ["users"]
+						},
+						"description": "Lista todos los usuarios del staff (solo admin)"
+					}
+				},
+				{
+					"name": "Get User Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/users/1",
+							"host": ["{{base_url}}"],
+							"path": ["users", "1"]
+						},
+						"description": "Obtiene detalles de un usuario específico"
+					}
+				},
+				{
+					"name": "Update User",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Juan Pérez Actualizado\",\n    \"email\": \"juan.actualizado@mastercolor.com\",\n    \"role_ids\": [1, 2]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/users/1",
+							"host": ["{{base_url}}"],
+							"path": ["users", "1"]
+						},
+						"description": "Actualiza información de un usuario (solo admin)"
+					}
+				},
+				{
+					"name": "Delete User",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/users/1",
+							"host": ["{{base_url}}"],
+							"path": ["users", "1"]
+						},
+						"description": "Elimina un usuario (soft delete - solo admin)"
+					}
+				}
+			]
+		},
+		{
+			"name": "🔧 Stock Management",
+			"description": "Gestión de movimientos de stock (solo admin)",
+			"item": [
+				{
+					"name": "Get Stock Movements",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/stock-movements",
+							"host": ["{{base_url}}"],
+							"path": ["stock-movements"]
+						},
+						"description": "Lista todos los movimientos de stock"
+					}
+				},
+				{
+					"name": "Create Stock Movement",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"type\": \"entrada\",\n    \"reason\": \"Compra a proveedor\",\n    \"reference_document\": \"FAC-001-2024\",\n    \"details\": [\n        {\n            \"product_id\": 1,\n            \"quantity\": 50,\n            \"unit_cost\": 75.00\n        },\n        {\n            \"product_id\": 2,\n            \"quantity\": 30,\n            \"unit_cost\": 85.00\n        }\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/stock-movements",
+							"host": ["{{base_url}}"],
+							"path": ["stock-movements"]
+						},
+						"description": "Crea un movimiento de stock. type: entrada o salida"
+					}
+				},
+				{
+					"name": "Get Stock Movement Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/stock-movements/1",
+							"host": ["{{base_url}}"],
+							"path": ["stock-movements", "1"]
+						},
+						"description": "Obtiene detalles de un movimiento de stock específico"
+					}
+				},
+				{
+					"name": "Cancel Stock Movement",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"reason\": \"Error en el ingreso de datos\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/stock-movements/1/cancel",
+							"host": ["{{base_url}}"],
+							"path": ["stock-movements", "1", "cancel"]
+						},
+						"description": "Cancela un movimiento de stock y revierte los cambios"
+					}
+				}
+			]
+		},
+		{
+			"name": "🎛️ Roles Management",
+			"description": "Gestión de roles y permisos (solo admin)",
+			"item": [
+				{
+					"name": "Get All Roles",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/roles",
+							"host": ["{{base_url}}"],
+							"path": ["roles"]
+						},
+						"description": "Lista todos los roles disponibles (Admin, Seller, Warehouse)"
+					}
+				},
+				{
+					"name": "Get Role Details",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{staff_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/roles/1",
+							"host": ["{{base_url}}"],
+							"path": ["roles", "1"]
+						},
+						"description": "Obtiene detalles de un rol específico"
+					}
+				}
+			]
+		},
+		{
+			"name": "💳 Payments & Webhooks",
+			"description": "Gestión de pagos y webhooks de MercadoPago",
+			"item": [
+				{
+					"name": "Check Payment Status",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{client_token}}"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/payment-status/1",
+							"host": ["{{base_url}}"],
+							"path": ["payment-status", "1"]
+						},
+						"description": "Verifica el estado del pago de una orden específica"
+					}
+				},
+				{
+					"name": "MercadoPago Webhook",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"type\": \"payment\",\n    \"data\": {\n        \"id\": \"123456789\"\n    }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/webhooks/mercadopago",
+							"host": ["{{base_url}}"],
+							"path": ["webhooks", "mercadopago"]
+						},
+						"description": "Webhook de MercadoPago para notificaciones de pago (llamado automáticamente por MP)"
+					}
+				},
+				{
+					"name": "Test MercadoPago Connection",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Accept",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/test/mercadopago",
+							"host": ["{{base_url}}"],
+							"path": ["test", "mercadopago"]
+						},
+						"description": "Prueba la conexión con MercadoPago (solo en desarrollo)"
+					}
+				}
+			]
+		}
+	]
+}
