@@ -4,14 +4,11 @@ namespace App\Listeners;
 
 use App\Events\OrderStatusChanged;
 use App\Mail\OrderStatusNotification;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 
-class SendOrderStatusEmail implements ShouldQueue
+class SendOrderStatusEmail
 {
-    use InteractsWithQueue;
 
     /**
      * Create the event listener.
@@ -38,7 +35,7 @@ class SendOrderStatusEmail implements ShouldQueue
 
             // Send the email notification
             Mail::to($order->client->email)
-                ->queue(new OrderStatusNotification($order, $event->previousStatus));
+                ->send(new OrderStatusNotification($order, $event->previousStatus));
             
             Log::info("Order status email queued for order {$order->id} to {$order->client->email}");
             
