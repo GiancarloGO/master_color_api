@@ -6,14 +6,14 @@ Hola {{ $order->client->name }},
 Te escribimos para informarte que el estado de tu pedido ha cambiado:
 
 @component('mail::panel')
-**Estado anterior:** {{ $statusMessages[$previousStatus] ?? $previousStatus }}  
+**Estado anterior:** {{ $statusMessages[$previousStatus] ?? $previousStatus }}
 **Estado actual:** {{ $statusMessages[$order->status] ?? $order->status }}
 @endcomponent
 
 ## Detalles del Pedido
 
-**Número de pedido:** #{{ $order->id }}  
-**Fecha de pedido:** {{ $order->created_at->format('d/m/Y H:i') }}  
+**Número de pedido:** #{{ $order->id }}
+**Fecha de pedido:** {{ $order->created_at->format('d/m/Y H:i') }}
 **Total:** S/. {{ number_format($order->total, 2) }}
 
 ### Productos
@@ -58,13 +58,13 @@ Nuestro equipo está preparando cuidadosamente tu pedido para el envío.
 @endcomponent
 @endif
 
-@component('mail::button', ['url' => config('app.frontend_url') . '/orders/' . $order->id])
+@component('mail::button', ['url' => config('app.frontend_url'))
 Ver Detalles del Pedido
 @endcomponent
 
 Si tienes alguna pregunta sobre tu pedido, no dudes en contactarnos.
 
-Gracias por confiar en Master Color,  
+Gracias por confiar en Master Color,
 {{ config('app.name') }}
 
 ---
