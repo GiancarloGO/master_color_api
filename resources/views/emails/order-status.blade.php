@@ -58,7 +58,7 @@ Nuestro equipo está preparando cuidadosamente tu pedido para el envío.
 @endcomponent
 @endif
 
-@component('mail::button', ['url' => config('app.frontend_url'))
+@component('mail::button', ['url' => config('app.frontend_url')])
 Ver Detalles del Pedido
 @endcomponent
 
