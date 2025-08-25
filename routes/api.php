@@ -9,6 +9,7 @@ use App\Http\Controllers\ClientOrderController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ClientCartController;
+use App\Http\Controllers\DocumentLookupController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\StockMovementController;
 use App\Http\Controllers\WebhookController;
@@ -211,7 +212,17 @@ if (app()->environment('local')) {
     Route::get('test/mercadopago', function () {
         $paymentService = app(\App\Services\PaymentService::class);
         $result = $paymentService->testMercadoPagoConnection();
-        
+
         return response()->json($result);
     })->name('test.mercadopago');
 }
+
+
+/*
+|--------------------------------------------------------------------------
+| DOCUMENT LOOKUP ROUTES
+|--------------------------------------------------------------------------
+*/
+
+Route::post('document/lookup', [DocumentLookupController::class, 'lookup'])
+    ->name('document.lookup');
