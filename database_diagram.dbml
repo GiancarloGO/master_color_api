@@ -1,0 +1,161 @@
+// Master Color API Database Schema
+// Generated from Laravel migrations for dbdiagram.io
+
+Table roles {
+  id bigint [pk, increment]
+  name varchar
+  description varchar
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null]
+}
+
+Table users {
+  id bigint [pk, increment]
+  name varchar
+  email varchar [unique]
+  email_verified_at timestamp [null]
+  password varchar
+  token_version varchar [default: '0']
+  role_id bigint [ref: > roles.id]
+  is_active boolean [default: true]
+  dni varchar [unique]
+  phone varchar [null]
+  remember_token varchar [null]
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null]
+}
+
+Table clients {
+  id bigint [pk, increment]
+  name varchar
+  email varchar
+  password varchar
+  client_type enum('individual', 'company')
+  identity_document varchar [unique]
+  document_type enum('DNI', 'RUC', 'CE', 'PASAPORTE')
+  email_verified_at timestamp [null]
+  verification_token varchar [null]
+  token_version varchar [default: '0']
+  phone varchar [null]
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null]
+}
+
+Table addresses {
+  id bigint [pk, increment]
+  client_id bigint [ref: > clients.id, null]
+  address_full varchar
+  district varchar
+  province varchar
+  department varchar
+  postal_code varchar
+  reference varchar
+  is_main boolean [default: false]
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null]
+}
+
+Table products {
+  id bigint [pk, increment]
+  name varchar
+  sku varchar [unique]
+  image_url varchar
+  barcode varchar [unique]
+  brand varchar
+  description text
+  presentation varchar
+  category varchar
+  unidad varchar
+  user_id bigint [ref: > users.id]
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null]
+}
+
+Table stocks {
+  id bigint [pk, increment]
+  product_id bigint [unique, ref: - products.id]
+  quantity bigint [default: 0]
+  min_stock bigint [default: 0]
+  max_stock bigint [default: 0]
+  purchase_price decimal(10,2)
+  sale_price decimal(10,2)
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null]
+}
+
+Table stock_movements {
+  id bigint [pk, increment]
+  movement_type enum('entrada', 'salida', 'ajuste', 'devolucion')
+  reason varchar
+  user_id bigint [ref: > users.id]
+  voucher_number varchar [null]
+  canceled_at timestamp [null]
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null]
+}
+
+Table details_movements {
+  id bigint [pk, increment]
+  stock_movement_id bigint [ref: > stock_movements.id]
+  stock_id bigint [ref: > stocks.id]
+  quantity integer
+  unit_price decimal(10,2) [null]
+  previous_stock integer
+  new_stock integer
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null]
+}
+
+Table orders {
+  id bigint [pk, increment]
+  user_id bigint [ref: > users.id]
+  client_id bigint [ref: > clients.id]
+  delivery_address_id bigint [ref: > addresses.id]
+  subtotal decimal(10,2)
+  shipping_cost decimal(10,2) [default: 0]
+  discount decimal(10,2) [default: 0]
+  status enum('pendiente_pago', 'pendiente', 'confirmado', 'procesando', 'enviado', 'entregado', 'cancelado', 'pago_fallido') [default: 'pendiente_pago']
+  codigo_payment varchar [null]
+  observations text [null]
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null]
+}
+
+Table order_details {
+  id bigint [pk, increment]
+  product_id bigint [ref: > products.id]
+  order_id bigint [ref: > orders.id]
+  quantity integer
+  unit_price decimal(10,2)
+  subtotal decimal(10,2)
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null]
+}
+
+Table payments {
+  id bigint [pk, increment]
+  order_id bigint [ref: > orders.id]
+  payment_method enum('Efectivo', 'Tarjeta', 'Yape', 'Plin', 'TC', 'MercadoPago') [default: 'MercadoPago']
+  payment_code varchar [null]
+  amount decimal(10,2)
+  currency varchar(3) [default: 'PEN']
+  status enum('pending', 'approved', 'rejected', 'cancelled', 'refunded') [default: 'pending']
+  external_id varchar [null]
+  external_response json [null]
+  document_type enum('Boleta', 'Factura', 'Ticket', 'NC') [default: 'Ticket']
+  nc_reference varchar [null]
+  observations text [null]
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null]
+}
