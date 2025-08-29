@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\RoleController;
+use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ClientAuthController;
 use App\Http\Controllers\ClientAddressController;
 use App\Http\Controllers\ClientOrderController;
@@ -113,6 +114,20 @@ Route::prefix('client/cart')->middleware([\App\Http\Middleware\ClientAuth::class
 
 Route::middleware(['jwt.auth', 'check.token.version', 'admin.only'])->group(function () {
     Route::apiResource('users', UserController::class);
+});
+
+/*
+|--------------------------------------------------------------------------
+| CLIENT MANAGEMENT ROUTES (STAFF)
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(['jwt.auth', 'check.token.version'])->group(function () {
+    Route::apiResource('clients', ClientController::class);
+    Route::get('clients-deleted', [ClientController::class, 'deleted'])->name('clients.deleted');
+    Route::patch('clients/{id}/restore', [ClientController::class, 'restore'])->name('clients.restore');
+    Route::delete('clients/{id}/force', [ClientController::class, 'forceDestroy'])->name('clients.force-destroy');
+    Route::patch('clients/{id}/toggle-verification', [ClientController::class, 'toggleVerification'])->name('clients.toggle-verification');
 });
 
 /*
