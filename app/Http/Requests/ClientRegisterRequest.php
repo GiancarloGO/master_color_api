@@ -39,7 +39,7 @@ class ClientRegisterRequest extends FormRequest
             'province' => 'required|string|max:100',
             'department' => 'required|string|max:100',
             'postal_code' => 'nullable|string|max:10',
-            'reference' => 'nullable|string|max:500',
+            'reference' => 'required|string|max:500',
         ];
     }
 
@@ -77,6 +77,7 @@ class ClientRegisterRequest extends FormRequest
             'department.required' => 'El departamento es obligatorio.',
             'department.max' => 'El departamento no puede tener más de 100 caracteres.',
             'postal_code.max' => 'El código postal no puede tener más de 10 caracteres.',
+            'reference.required' => 'La referencia es obligatoria.',
             'reference.max' => 'La referencia no puede tener más de 500 caracteres.',
         ];
     }

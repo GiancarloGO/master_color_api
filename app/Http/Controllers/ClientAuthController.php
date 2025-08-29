@@ -63,7 +63,7 @@ class ClientAuthController extends Controller
                 'province' => $data['province'],
                 'department' => $data['department'],
                 'postal_code' => $data['postal_code'] ?? null,
-                'reference' => $data['reference'] ?? null,
+                'reference' => $data['reference'],
                 'is_main' => true // Primera dirección es la principal
             ]);
 
