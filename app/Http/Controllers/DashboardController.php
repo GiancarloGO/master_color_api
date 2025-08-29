@@ -266,12 +266,25 @@ class DashboardController extends Controller
         $alerts = [];
 
         // Low stock alerts
-        $lowStockCount = Stock::whereRaw('quantity <= min_stock')->count();
-        if ($lowStockCount > 0) {
+        $lowStockProducts = Stock::with('product')
+            ->whereRaw('quantity <= min_stock')
+            ->get()
+            ->map(function ($stock) {
+                return [
+                    'id' => $stock->product->id,
+                    'name' => $stock->product->name,
+                    'sku' => $stock->product->sku,
+                    'current_stock' => $stock->quantity,
+                    'min_stock' => $stock->min_stock,
+                    'category' => $stock->product->category,
+                ];
+            });
+
+        if ($lowStockProducts->count() > 0) {
             $alerts[] = [
                 'type' => 'warning',
-                'message' => "Hay {$lowStockCount} productos con stock bajo",
-                'action' => '/inventory/low-stock',
+                'message' => "Hay {$lowStockProducts->count()} productos con stock bajo",
+                'details' => $lowStockProducts->toArray(),
                 'priority' => 'high'
             ];
         }
