@@ -114,6 +114,7 @@ Route::prefix('client/cart')->middleware([\App\Http\Middleware\ClientAuth::class
 
 Route::middleware(['jwt.auth', 'check.token.version', 'admin.only'])->group(function () {
     Route::apiResource('users', UserController::class);
+    Route::post('users/{id}/reset-password', [UserController::class, 'resetPassword'])->name('users.reset-password');
 });
 
 /*
