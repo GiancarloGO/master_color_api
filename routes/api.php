@@ -16,6 +16,16 @@ use App\Http\Controllers\StockMovementController;
 use App\Http\Controllers\WebhookController;
 use Illuminate\Support\Facades\Route;
 
+use App\Http\Controllers\DiagnosticController;
+
+/*
+|--------------------------------------------------------------------------
+| DIAGNOSTIC ROUTES (TEMPORARY - REMOVE AFTER DEBUGGING)
+|--------------------------------------------------------------------------
+*/
+Route::get('/diagnostic', [DiagnosticController::class, 'index']);
+Route::get('/diagnostic/test-email', [DiagnosticController::class, 'testEmail']);
+
 /*
 |--------------------------------------------------------------------------
 | AUTH ROUTES
