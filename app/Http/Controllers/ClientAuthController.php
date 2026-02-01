@@ -81,12 +81,12 @@ class ClientAuthController extends Controller
             Auth::guard('client')->setUser($client);
             $token = JWTAuth::fromUser($client, ['type' => 'client']);
 
-            // Enviar correo de verificación (asíncrono)
+            // Enviar correo de verificación
             try {
-                Mail::to($client->email)->queue(new ClientEmailVerification($client));
+                Mail::to($client->email)->send(new ClientEmailVerification($client));
             } catch (\Exception $mailException) {
                 // Log el error pero continuamos con el registro
-                \Log::error('Error al encolar correo de verificación: ' . $mailException->getMessage());
+                \Log::error('Error al enviar correo de verificación: ' . $mailException->getMessage());
             }
 
             return ApiResponseClass::sendResponse([
@@ -150,11 +150,11 @@ class ClientAuthController extends Controller
         $client->save();
 
         try {
-            Mail::to($client->email)->queue(new ClientEmailVerification($client));
+            Mail::to($client->email)->send(new ClientEmailVerification($client));
 
             return ApiResponseClass::sendResponse([], 'Se ha reenviado el correo de verificación.');
         } catch (\Exception $e) {
-            return ApiResponseClass::errorResponse('Error al encolar el correo de verificación.', 500, [$e->getMessage()]);
+            return ApiResponseClass::errorResponse('Error al enviar el correo de verificación.', 500, [$e->getMessage()]);
         }
     }
 
@@ -287,13 +287,13 @@ class ClientAuthController extends Controller
             'created_at' => Carbon::now()
         ]);
 
-        // Enviar correo con el token (asíncrono)
+        // Enviar correo con el token
         try {
-            Mail::to($request->email)->queue(new ClientResetPassword($token, $request->email, $client->name));
+            Mail::to($request->email)->send(new ClientResetPassword($token, $request->email, $client->name));
 
             return ApiResponseClass::sendResponse([], 'Se ha enviado un enlace de recuperación a tu correo electrónico.');
         } catch (\Exception $e) {
-            return ApiResponseClass::errorResponse('Error al encolar el correo de recuperación.', 500, [$e->getMessage()]);
+            return ApiResponseClass::errorResponse('Error al enviar el correo de recuperación.', 500, [$e->getMessage()]);
         }
     }
 

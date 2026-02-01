@@ -2,26 +2,11 @@
 
 namespace App\Mail;
 
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
-use Illuminate\Queue\SerializesModels;
 
-class ClientEmailVerification extends Mailable implements ShouldQueue
+class ClientEmailVerification extends Mailable
 {
-    use Queueable, SerializesModels;
-
     public $client;
-
-    /**
-     * Number of times to retry the job
-     */
-    public $tries = 3;
-
-    /**
-     * Timeout for the job in seconds
-     */
-    public $timeout = 60;
 
     public function __construct($client)
     {
