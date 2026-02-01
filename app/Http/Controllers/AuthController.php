@@ -14,6 +14,10 @@ use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
+use Carbon\Carbon;
 use Tymon\JWTAuth\Exceptions\TokenInvalidException;
 
 class AuthController extends Controller
@@ -162,5 +166,87 @@ class AuthController extends Controller
             ]);
             return ApiResponseClass::errorResponse('Error al cambiar la contraseña', 500, [$e->getMessage()]);
         }
+    }
+
+    /**
+     * Solicitar recuperación de contraseña para empleados
+     */
+    public function forgotPassword(Request $request)
+    {
+        $request->validate(['email' => 'required|email']);
+
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            // Por seguridad, no revelamos si el email existe o no
+            return ApiResponseClass::sendResponse([], 'Se ha enviado un enlace de recuperación si el correo existe en nuestro sistema.');
+        }
+
+        // Eliminar tokens anteriores para este email
+        DB::table('password_resets')
+            ->where('email', $request->email)
+            ->delete();
+
+        // Crear nuevo token
+        $token = Str::random(60);
+
+        // Guardar token en la base de datos
+        DB::table('password_resets')->insert([
+            'email' => $request->email,
+            'token' => Hash::make($token),
+            'created_at' => Carbon::now()
+        ]);
+
+        // Enviar correo con el token
+        try {
+            Mail::to($request->email)->send(new \App\Mail\UserResetPassword($token, $request->email, $user->name));
+
+            return ApiResponseClass::sendResponse([], 'Se ha enviado un enlace de recuperación a tu correo electrónico.');
+        } catch (\Exception $e) {
+            return ApiResponseClass::errorResponse('Error al enviar el correo de recuperación.', 500, [$e->getMessage()]);
+        }
+    }
+
+    /**
+     * Validar token y restablecer contraseña para empleados
+     */
+    public function resetPassword(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'token' => 'required|string',
+            'password' => 'required|string|min:8|confirmed'
+        ]);
+
+        // Verificar si existe el token para el email
+        $passwordReset = DB::table('password_resets')
+            ->where('email', $request->email)
+            ->first();
+
+        if (!$passwordReset || !Hash::check($request->token, $passwordReset->token)) {
+            return ApiResponseClass::errorResponse('Token inválido o expirado.', 400);
+        }
+
+        // Verificar si el token ha expirado (1 hora)
+        if (Carbon::parse($passwordReset->created_at)->addHour()->isPast()) {
+            DB::table('password_resets')->where('email', $request->email)->delete();
+            return ApiResponseClass::errorResponse('El token ha expirado. Por favor solicita un nuevo enlace de recuperación.', 400);
+        }
+
+        // Actualizar la contraseña del usuario
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            return ApiResponseClass::errorResponse('No se encontró ningún usuario con este correo electrónico.', 404);
+        }
+
+        $user->password = Hash::make($request->password);
+        $user->token_version = (int)$user->token_version + 1;
+        $user->save();
+
+        // Eliminar el token usado
+        DB::table('password_resets')->where('email', $request->email)->delete();
+
+        return ApiResponseClass::sendResponse([], 'Contraseña actualizada correctamente.');
     }
 }
