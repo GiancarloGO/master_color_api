@@ -17,7 +17,7 @@ services:
     depends_on:
       - redis
     networks:
-      - mastercolorapi_network
+      - almazen_network
 
   redis:
     image: redis:7-alpine
@@ -33,6 +33,7 @@ services:
 
 volumes:
   redis_data:
+
 
 networks:
   almazen_network:

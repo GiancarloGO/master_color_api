@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y \
     libzip-dev \
     zip \
     unzip \
+    supervisor \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -66,9 +67,9 @@ RUN composer dump-autoload --optimize
 
 # Instalar dependencias de NPM y hacer build
 RUN if [ -f package.json ]; then \
-        npm ci && \
-        npm run build && \
-        rm -rf node_modules; \
+    npm ci && \
+    npm run build && \
+    rm -rf node_modules; \
     fi
 
 # Crear directorios necesarios y establecer permisos
@@ -77,8 +78,15 @@ RUN mkdir -p storage/logs storage/framework/{cache,sessions,views} bootstrap/cac
     && chmod -R 755 /var/www/html/storage \
     && chmod -R 755 /var/www/html/bootstrap/cache
 
+# Copiar configuración de Supervisor
+COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Copiar script de entrypoint
+COPY docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 # Exponer puerto 80
 EXPOSE 80
 
-# Comando por defecto
-CMD ["apache2-foreground"]
+# Usar entrypoint script para iniciar Supervisor
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
