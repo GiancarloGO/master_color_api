@@ -18,6 +18,8 @@
         "maatwebsite/excel": "^3.1",
         "mercadopago/dx-php": "^3.5",
         "resend/resend-laravel": "^1.1",
+        "symfony/http-client": "^7.4",
+        "symfony/mailgun-mailer": "^7.4",
         "tymon/jwt-auth": "^2.2"
     },
     "require-dev": {
