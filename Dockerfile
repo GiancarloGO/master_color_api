@@ -80,15 +80,8 @@ RUN mkdir -p storage/logs storage/framework/{cache,sessions,views} bootstrap/cac
     && chmod -R 755 /var/www/html/storage \
     && chmod -R 755 /var/www/html/bootstrap/cache
 
-# Copiar configuración de Supervisor
-COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-
-# Copiar script de entrypoint
-COPY docker/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
-
 # Exponer puerto 80
 EXPOSE 80
 
-# Usar entrypoint script para iniciar Supervisor
-ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+# Comando por defecto: iniciar Apache directamente
+CMD ["apache2-foreground"]
