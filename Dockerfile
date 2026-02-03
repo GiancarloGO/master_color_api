@@ -42,10 +42,10 @@ RUN echo 'opcache.memory_consumption=128' >> /usr/local/etc/php/conf.d/opcache.i
 # Instalar Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Habilitar mod_rewrite y configurar MPM
-RUN a2enmod rewrite && \
-    a2dismod mpm_event mpm_worker && \
-    a2enmod mpm_prefork
+# Configurar Apache: deshabilitar todos los MPM y habilitar solo mpm_prefork
+RUN a2dismod mpm_event mpm_worker mpm_prefork || true && \
+    a2enmod mpm_prefork && \
+    a2enmod rewrite
 
 # Configurar DocumentRoot
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
