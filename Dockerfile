@@ -42,13 +42,20 @@ RUN echo 'opcache.memory_consumption=128' >> /usr/local/etc/php/conf.d/opcache.i
 # Instalar Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Configurar Apache MPM: eliminar archivos de configuración de MPMs no deseados
-RUN rm -f /etc/apache2/mods-enabled/mpm_event.* \
-    && rm -f /etc/apache2/mods-enabled/mpm_worker.* \
-    && rm -f /etc/apache2/mods-enabled/mpm_prefork.* \
+# Configurar Apache MPM: eliminar TODOS los MPMs y configurar solo mpm_prefork
+RUN echo "=== Removing all MPM configurations ===" \
+    && rm -f /etc/apache2/mods-enabled/mpm_*.* \
+    && rm -f /etc/apache2/mods-enabled/mpm_*.load \
+    && rm -f /etc/apache2/mods-enabled/mpm_*.conf \
+    && echo "=== Creating mpm_prefork symlinks ===" \
     && ln -s /etc/apache2/mods-available/mpm_prefork.conf /etc/apache2/mods-enabled/mpm_prefork.conf \
     && ln -s /etc/apache2/mods-available/mpm_prefork.load /etc/apache2/mods-enabled/mpm_prefork.load \
-    && a2enmod rewrite
+    && echo "=== Enabling mod_rewrite ===" \
+    && a2enmod rewrite \
+    && echo "=== Checking enabled MPMs ===" \
+    && ls -la /etc/apache2/mods-enabled/mpm_* || echo "No MPM files found" \
+    && echo "=== Checking Apache configuration ===" \
+    && apache2ctl -M | grep mpm || echo "No MPM modules loaded"
 
 # Configurar DocumentRoot
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
