@@ -1,8 +1,9 @@
-# Usar PHP 8.3 con Apache
-FROM php:8.3-apache
+# Usar PHP 8.3 FPM (sin Apache)
+FROM php:8.3-fpm
 
-# Instalar dependencias del sistema
+# Instalar Nginx y dependencias del sistema
 RUN apt-get update && apt-get install -y \
+    nginx \
     git \
     curl \
     libpng-dev \
@@ -12,7 +13,6 @@ RUN apt-get update && apt-get install -y \
     libzip-dev \
     zip \
     unzip \
-    supervisor \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -42,25 +42,10 @@ RUN echo 'opcache.memory_consumption=128' >> /usr/local/etc/php/conf.d/opcache.i
 # Instalar Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Configurar Apache MPM: eliminar TODOS los MPMs y configurar solo mpm_prefork
-RUN echo "=== Removing all MPM configurations ===" \
-    && rm -f /etc/apache2/mods-enabled/mpm_*.* \
-    && rm -f /etc/apache2/mods-enabled/mpm_*.load \
-    && rm -f /etc/apache2/mods-enabled/mpm_*.conf \
-    && echo "=== Creating mpm_prefork symlinks ===" \
-    && ln -s /etc/apache2/mods-available/mpm_prefork.conf /etc/apache2/mods-enabled/mpm_prefork.conf \
-    && ln -s /etc/apache2/mods-available/mpm_prefork.load /etc/apache2/mods-enabled/mpm_prefork.load \
-    && echo "=== Enabling mod_rewrite ===" \
-    && a2enmod rewrite \
-    && echo "=== Checking enabled MPMs ===" \
-    && ls -la /etc/apache2/mods-enabled/mpm_* || echo "No MPM files found" \
-    && echo "=== Checking Apache configuration ===" \
-    && apache2ctl -M | grep mpm || echo "No MPM modules loaded"
-
-# Configurar DocumentRoot
-ENV APACHE_DOCUMENT_ROOT /var/www/html/public
-RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
-RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
+# Configurar Nginx
+RUN rm /etc/nginx/sites-enabled/default
+COPY docker/nginx/default.conf /etc/nginx/sites-available/default
+RUN ln -s /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
 
 # Establecer directorio de trabajo
 WORKDIR /var/www/html
@@ -71,7 +56,7 @@ COPY composer.json composer.lock ./
 # Instalar dependencias de Composer (sin vendor del host)
 RUN composer install --no-dev --optimize-autoloader --no-scripts --no-autoloader
 
-# Copiar el resto de archivos del proyecto (excluyendo vendor y node_modules)
+# Copiar el resto de archivos del proyecto
 COPY . /var/www/html
 
 # Completar instalación de composer con scripts
@@ -90,8 +75,12 @@ RUN mkdir -p storage/logs storage/framework/{cache,sessions,views} bootstrap/cac
     && chmod -R 755 /var/www/html/storage \
     && chmod -R 755 /var/www/html/bootstrap/cache
 
+# Copiar script de inicio
+COPY docker/start.sh /usr/local/bin/start.sh
+RUN chmod +x /usr/local/bin/start.sh
+
 # Exponer puerto 80
 EXPOSE 80
 
-# Comando por defecto: iniciar Apache directamente
-CMD ["apache2-foreground"]
+# Iniciar Nginx y PHP-FPM
+CMD ["/usr/local/bin/start.sh"]
