@@ -19,7 +19,8 @@ class ClientResetPassword extends Mailable
 
     public function build()
     {
-        $url = config('app.frontend_url') . '/reset-password?token=' . $this->token . '&email=' . $this->email;
+        $frontendUrl = config('app.frontend_url') ?: env('APP_FRONTEND_URL', env('FRONTEND_URL'));
+        $url = $frontendUrl . '/reset-password?token=' . $this->token . '&email=' . $this->email;
 
         return $this->subject('Recuperación de contraseña')
                     ->markdown('emails.clients.reset-password')
