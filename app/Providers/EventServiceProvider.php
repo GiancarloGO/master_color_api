@@ -32,6 +32,7 @@ class EventServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Register model observers
+        \App\Models\Order::observe(\App\Observers\OrderObserver::class);
     }
 }

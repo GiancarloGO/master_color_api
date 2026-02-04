@@ -135,11 +135,6 @@ class OrderController extends Controller
             }
             
             $order->save();
-
-            // Dispatch event for email notification if status actually changed
-            if ($currentStatus !== $newStatus) {
-                event(new OrderStatusChanged($order, $currentStatus, $newStatus));
-            }
             
             return ApiResponseClass::sendResponse(
                 new OrderResource($order->load(['client', 'orderDetails.product', 'deliveryAddress'])),
