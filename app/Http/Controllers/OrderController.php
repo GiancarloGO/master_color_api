@@ -161,11 +161,14 @@ class OrderController extends Controller
             $stats = [
                 'total_orders' => Order::count(),
                 'pending_orders' => Order::whereIn('status', ['pendiente_pago', 'pendiente'])->count(),
+                'pending_payment_orders' => Order::where('status', 'pendiente_pago')->count(),
+                'pending_confirmation_orders' => Order::where('status', 'pendiente')->count(),
                 'confirmed_orders' => Order::where('status', 'confirmado')->count(),
                 'processing_orders' => Order::where('status', 'procesando')->count(),
                 'shipped_orders' => Order::where('status', 'enviado')->count(),
                 'delivered_orders' => Order::where('status', 'entregado')->count(),
                 'cancelled_orders' => Order::where('status', 'cancelado')->count(),
+                'failed_payment_orders' => Order::where('status', 'pago_fallido')->count(),
                 'today_orders' => Order::whereDate('created_at', today())->count(),
                 'this_week_orders' => Order::whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])->count(),
                 'this_month_orders' => Order::whereMonth('created_at', now()->month)
