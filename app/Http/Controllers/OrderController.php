@@ -5,12 +5,14 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
 use App\Models\Order;
 use App\Models\Client;
 use App\Http\Resources\OrderResource;
 use App\Classes\ApiResponseClass;
 use App\Events\OrderStatusChanged;
 use Illuminate\Support\Facades\Auth;
+use App\Services\PaymentService;
 
 class OrderController extends Controller
 {
@@ -127,14 +129,32 @@ class OrderController extends Controller
                 );
             }
             
-            $order->status = $newStatus;
-            $order->user_id = Auth::id(); // Track who updated the order
-            
-            if ($request->has('observations')) {
-                $order->observations = $request->observations;
-            }
-            
-            $order->save();
+            DB::transaction(function () use ($order, $newStatus, $currentStatus, $request) {
+                // Detectar si se está cancelando el pedido
+                $isCancelling = $newStatus === 'cancelado' && $currentStatus !== 'cancelado';
+                
+                // Si se está cancelando, hacer rollback del stock
+                if ($isCancelling) {
+                    $paymentService = app(PaymentService::class);
+                    $paymentService->rollbackOrderStock($order, "Pedido cancelado manualmente desde '{$currentStatus}'");
+                    
+                    Log::info('Order cancelled, stock rollback triggered', [
+                        'order_id' => $order->id,
+                        'previous_status' => $currentStatus,
+                        'new_status' => $newStatus,
+                        'user_id' => Auth::id()
+                    ]);
+                }
+                
+                $order->status = $newStatus;
+                $order->user_id = Auth::id(); // Track who updated the order
+                
+                if ($request->has('observations')) {
+                    $order->observations = $request->observations;
+                }
+                
+                $order->save();
+            });
             
             return ApiResponseClass::sendResponse(
                 new OrderResource($order->load(['client', 'orderDetails.product', 'deliveryAddress'])),

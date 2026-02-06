@@ -9,6 +9,7 @@ use MercadoPago\Client\Preference\PreferenceClient;
 use MercadoPago\Client\Payment\PaymentClient;
 use MercadoPago\MercadoPagoConfig;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 use Exception;
 
 class PaymentService
@@ -169,27 +170,41 @@ class PaymentService
      */
     private function updateOrderStatus(Order $order, string $mercadoPagoStatus, ?string $paymentId = null): void
     {
-        switch ($mercadoPagoStatus) {
-            case 'approved':
-                $updateData = ['status' => 'pendiente'];
-                if ($paymentId) {
-                    $updateData['codigo_payment'] = $paymentId;
-                }
-                $order->update($updateData);
-                // Descontar stock automáticamente
-                app(StockMovementService::class)->processOrderStockReduction($order);
-                break;
+        DB::transaction(function () use ($order, $mercadoPagoStatus, $paymentId) {
+            switch ($mercadoPagoStatus) {
+                case 'approved':
+                    $updateData = ['status' => 'pendiente'];
+                    if ($paymentId) {
+                        $updateData['codigo_payment'] = $paymentId;
+                    }
+                    $order->update($updateData);
+                    // Descontar stock automáticamente
+                    app(StockMovementService::class)->processOrderStockReduction($order);
+                    
+                    Log::info('Order approved and stock reduced', [
+                        'order_id' => $order->id,
+                        'payment_id' => $paymentId
+                    ]);
+                    break;
 
-            case 'rejected':
-            case 'cancelled':
-                $order->update(['status' => 'pago_fallido']);
-                break;
+                case 'rejected':
+                case 'cancelled':
+                    // Rollback: revertir stock si ya fue reducido
+                    $this->rollbackStockIfNeeded($order, 'Pago ' . $mercadoPagoStatus);
+                    $order->update(['status' => 'pago_fallido']);
+                    
+                    Log::warning('Payment failed, stock rolled back if needed', [
+                        'order_id' => $order->id,
+                        'mp_status' => $mercadoPagoStatus
+                    ]);
+                    break;
 
-            case 'pending':
-            case 'in_process':
-                // Mantener en pendiente_pago
-                break;
-        }
+                case 'pending':
+                case 'in_process':
+                    // Mantener en pendiente_pago
+                    break;
+            }
+        });
     }
 
     /**
@@ -491,138 +506,140 @@ class PaymentService
      */
     private function createPaymentPreferenceWithCurl(Order $order): array
     {
-        // Validar datos del cliente
-        if (!$order->client->email || !filter_var($order->client->email, FILTER_VALIDATE_EMAIL)) {
-            throw new Exception('Email del cliente inválido o faltante');
-        }
-
-        if (!$order->client->name || strlen($order->client->name) < 2) {
-            throw new Exception('Nombre del cliente inválido o faltante');
-        }
-
-        // Preparar items de la orden
-        $items = [];
-        foreach ($order->orderDetails as $detail) {
-            $title = trim($detail->product->name);
-            if (strlen($title) > 256) {
-                $title = substr($title, 0, 253) . '...';
+        return DB::transaction(function () use ($order) {
+            // Validar datos del cliente
+            if (!$order->client->email || !filter_var($order->client->email, FILTER_VALIDATE_EMAIL)) {
+                throw new Exception('Email del cliente inválido o faltante');
             }
 
-            $unitPrice = round((float) $detail->unit_price, 2);
+            if (!$order->client->name || strlen($order->client->name) < 2) {
+                throw new Exception('Nombre del cliente inválido o faltante');
+            }
 
-            $items[] = [
-                'id' => (string) $detail->product_id,
-                'title' => $title,
-                'description' => substr($title, 0, 100),
-                'quantity' => (int) $detail->quantity,
-                'unit_price' => $unitPrice,
-                'currency_id' => 'PEN'
+            // Preparar items de la orden
+            $items = [];
+            foreach ($order->orderDetails as $detail) {
+                $title = trim($detail->product->name);
+                if (strlen($title) > 256) {
+                    $title = substr($title, 0, 253) . '...';
+                }
+
+                $unitPrice = round((float) $detail->unit_price, 2);
+
+                $items[] = [
+                    'id' => (string) $detail->product_id,
+                    'title' => $title,
+                    'description' => substr($title, 0, 100),
+                    'quantity' => (int) $detail->quantity,
+                    'unit_price' => $unitPrice,
+                    'currency_id' => 'PEN'
+                ];
+            }
+
+            // Configurar URLs
+            $backendUrl = env('APP_URL', 'http://localhost:8000');
+            $frontendUrl = env('APP_FRONTEND_URL', 'http://localhost:5173');
+
+            // Preparar datos del pagador
+            $payerName = trim($order->client->name);
+            $payerEmail = trim(strtolower($order->client->email));
+
+            // Estructura de la preferencia
+            $preference_data = [
+                'items' => $items,
+                'payer' => [
+                    'name' => $payerName,
+                    'surname' => '',
+                    'email' => $payerEmail
+                ],
+                'external_reference' => (string) $order->id,
+                'expires' => false,
+                'back_urls' => [
+                    'success' => $frontendUrl . '/payment/success?order=' . $order->id,
+                    'failure' => $frontendUrl . '/payment/failure?order=' . $order->id,
+                    'pending' => $frontendUrl . '/payment/pending?order=' . $order->id
+                ],
+                'auto_return' => 'all'
             ];
-        }
 
-        // Configurar URLs
-        $backendUrl = env('APP_URL', 'http://localhost:8000');
-        $frontendUrl = env('APP_FRONTEND_URL', 'http://localhost:5173');
+            // Solo agregar notification_url y statement_descriptor si no es localhost
+            if (!str_contains($backendUrl, 'localhost') && !str_contains($backendUrl, '127.0.0.1')) {
+                $preference_data['notification_url'] = $backendUrl . '/api/webhooks/mercadopago';
+                $preference_data['statement_descriptor'] = 'MasterColor';
+                // No agregar auto_return ya que causa conflictos con back_urls personalizadas
+            }
 
-        // Preparar datos del pagador
-        $payerName = trim($order->client->name);
-        $payerEmail = trim(strtolower($order->client->email));
-
-        // Estructura de la preferencia
-        $preference_data = [
-            'items' => $items,
-            'payer' => [
-                'name' => $payerName,
-                'surname' => '',
-                'email' => $payerEmail
-            ],
-            'external_reference' => (string) $order->id,
-            'expires' => false,
-            'back_urls' => [
-                'success' => $frontendUrl . '/payment/success?order=' . $order->id,
-                'failure' => $frontendUrl . '/payment/failure?order=' . $order->id,
-                'pending' => $frontendUrl . '/payment/pending?order=' . $order->id
-            ],
-            'auto_return' => 'all'
-        ];
-
-        // Solo agregar notification_url y statement_descriptor si no es localhost
-        if (!str_contains($backendUrl, 'localhost') && !str_contains($backendUrl, '127.0.0.1')) {
-            $preference_data['notification_url'] = $backendUrl . '/api/webhooks/mercadopago';
-            $preference_data['statement_descriptor'] = 'MasterColor';
-            // No agregar auto_return ya que causa conflictos con back_urls personalizadas
-        }
-
-        Log::info('Creating MercadoPago preference with CURL', [
-            'order_id' => $order->id,
-            'preference_data' => $preference_data
-        ]);
-
-        // Realizar llamada CURL directa
-        $curl = curl_init();
-        curl_setopt_array($curl, [
-            CURLOPT_URL => 'https://api.mercadopago.com/checkout/preferences',
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST => true,
-            CURLOPT_TIMEOUT => 30,
-            CURLOPT_HTTPHEADER => [
-                'Authorization: Bearer ' . config('mercadopago.access_token'),
-                'Content-Type: application/json'
-            ],
-            CURLOPT_POSTFIELDS => json_encode($preference_data)
-        ]);
-
-        $response = curl_exec($curl);
-        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($curl);
-        curl_close($curl);
-
-        // Verificar errores de CURL
-        if ($curlError) {
-            throw new Exception('CURL Error: ' . $curlError);
-        }
-
-        // Verificar código de respuesta HTTP
-        if ($httpCode !== 201) {
-            Log::error('MercadoPago API Error', [
-                'http_code' => $httpCode,
-                'response' => $response,
-                'order_id' => $order->id
+            Log::info('Creating MercadoPago preference with CURL', [
+                'order_id' => $order->id,
+                'preference_data' => $preference_data
             ]);
-            throw new Exception('MercadoPago API Error - HTTP ' . $httpCode . ': ' . $response);
-        }
 
-        $preference = json_decode($response, true);
+            // Realizar llamada CURL directa
+            $curl = curl_init();
+            curl_setopt_array($curl, [
+                CURLOPT_URL => 'https://api.mercadopago.com/checkout/preferences',
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST => true,
+                CURLOPT_TIMEOUT => 30,
+                CURLOPT_HTTPHEADER => [
+                    'Authorization: Bearer ' . config('mercadopago.access_token'),
+                    'Content-Type: application/json'
+                ],
+                CURLOPT_POSTFIELDS => json_encode($preference_data)
+            ]);
 
-        // Verificar que la respuesta sea válida
-        if (!$preference || !isset($preference['id'])) {
-            throw new Exception('Invalid response from MercadoPago API');
-        }
+            $response = curl_exec($curl);
+            $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($curl);
+            curl_close($curl);
 
-        // Crear registro de pago
-        $payment = Payment::create([
-            'order_id' => $order->id,
-            'payment_method' => 'MercadoPago',
-            'amount' => $order->total,
-            'currency' => 'PEN',
-            'status' => 'pending',
-            'external_id' => $preference['id'],
-            'external_response' => $preference
-        ]);
+            // Verificar errores de CURL
+            if ($curlError) {
+                throw new Exception('CURL Error: ' . $curlError);
+            }
 
-        Log::info('MercadoPago preference created successfully with CURL', [
-            'order_id' => $order->id,
-            'preference_id' => $preference['id'],
-            'payment_id' => $payment->id
-        ]);
+            // Verificar código de respuesta HTTP
+            if ($httpCode !== 201) {
+                Log::error('MercadoPago API Error', [
+                    'http_code' => $httpCode,
+                    'response' => $response,
+                    'order_id' => $order->id
+                ]);
+                throw new Exception('MercadoPago API Error - HTTP ' . $httpCode . ': ' . $response);
+            }
 
-        return [
-            'success' => true,
-            'preference_id' => $preference['id'],
-            'init_point' => $preference['init_point'],
-            'sandbox_init_point' => $preference['sandbox_init_point'] ?? null,
-            'payment_id' => $payment->id
-        ];
+            $preference = json_decode($response, true);
+
+            // Verificar que la respuesta sea válida
+            if (!$preference || !isset($preference['id'])) {
+                throw new Exception('Invalid response from MercadoPago API');
+            }
+
+            // Crear registro de pago SOLO si todo fue exitoso
+            $payment = Payment::create([
+                'order_id' => $order->id,
+                'payment_method' => 'MercadoPago',
+                'amount' => $order->total,
+                'currency' => 'PEN',
+                'status' => 'pending',
+                'external_id' => $preference['id'],
+                'external_response' => $preference
+            ]);
+
+            Log::info('MercadoPago preference created successfully with CURL', [
+                'order_id' => $order->id,
+                'preference_id' => $preference['id'],
+                'payment_id' => $payment->id
+            ]);
+
+            return [
+                'success' => true,
+                'preference_id' => $preference['id'],
+                'init_point' => $preference['init_point'],
+                'sandbox_init_point' => $preference['sandbox_init_point'] ?? null,
+                'payment_id' => $payment->id
+            ];
+        });
     }
 
     /**
@@ -704,5 +721,50 @@ class PaymentService
         ];
 
         return $typeMap[$documentType] ?? 'DNI';
+    }
+
+    /**
+     * Rollback stock if it was already reduced for this order
+     */
+    private function rollbackStockIfNeeded(Order $order, string $reason = 'Rollback automático'): void
+    {
+        try {
+            // Buscar movimiento de stock asociado a esta orden
+            $stockMovement = \App\Models\StockMovement::where('voucher_number', 'LIKE', "VENTA-{$order->id}-%")
+                ->where('movement_type', 'salida')
+                ->whereNull('reversed_at')
+                ->first();
+
+            if ($stockMovement) {
+                // Revertir el movimiento de stock
+                app(StockMovementService::class)->reverseMovement($stockMovement->id);
+
+                Log::info('Stock rollback executed', [
+                    'order_id' => $order->id,
+                    'stock_movement_id' => $stockMovement->id,
+                    'reason' => $reason
+                ]);
+            } else {
+                Log::info('No stock movement found to rollback', [
+                    'order_id' => $order->id,
+                    'reason' => $reason
+                ]);
+            }
+        } catch (Exception $e) {
+            Log::error('Error during stock rollback', [
+                'order_id' => $order->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            // No lanzar excepción para no bloquear el flujo principal
+        }
+    }
+
+    /**
+     * Public method to rollback stock for an order (used by OrderController)
+     */
+    public function rollbackOrderStock(Order $order, string $reason = 'Cancelación de pedido'): void
+    {
+        $this->rollbackStockIfNeeded($order, $reason);
     }
 }
