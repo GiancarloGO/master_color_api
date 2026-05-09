@@ -12,6 +12,7 @@ use App\Http\Requests\LoginRequest;
 use App\Http\Requests\ChangePasswordRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
+use App\Services\AuditService;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
@@ -22,6 +23,7 @@ use Tymon\JWTAuth\Exceptions\TokenInvalidException;
 
 class AuthController extends Controller
 {
+    public function __construct(private AuditService $audit) {}
 
     public function register(RegisterRequest $request)
     {
@@ -44,6 +46,12 @@ class AuthController extends Controller
                 'token_version' => $user->token_version,
             ])->fromUser($user);
 
+            $this->audit->logStaffAction($user, 'auth.register', 'User', $user->id, null, [
+                'name' => $user->name,
+                'email' => $user->email,
+                'role_id' => $user->role_id,
+            ]);
+
             return ApiResponseClass::sendResponse([
                 'user' => new UserResource($user->load('role')),
                 'access_token' => $token,
@@ -62,17 +70,25 @@ class AuthController extends Controller
             // Validar si el usuario esta activo y no esta eliminado
             $user = User::where('email', $credentials['email'])->first();
             if (!$user || !$user->is_active || $user->deleted_at) {
+                $this->audit->logSystemAction('auth.login_failed', 'User', null, [
+                    'email' => $credentials['email'],
+                    'reason' => 'usuario inactivo o no encontrado',
+                ]);
                 return ApiResponseClass::errorResponse('Credenciales inválidas', 401);
             }
-
 
             // Verificar credenciales JWT
             if (!JWTAuth::attempt($credentials)) {
+                $this->audit->logSystemAction('auth.login_failed', 'User', $user->id, [
+                    'email' => $credentials['email'],
+                    'reason' => 'contraseña incorrecta',
+                ]);
                 return ApiResponseClass::errorResponse('Credenciales inválidas', 401);
             }
 
-
             $token = JWTAuth::claims(['token_version' => $user->token_version])->fromUser($user);
+
+            $this->audit->logStaffAction($user, 'auth.login', 'User', $user->id);
 
             return ApiResponseClass::sendResponse([
                 'access_token' => $token,
@@ -114,6 +130,7 @@ class AuthController extends Controller
         try {
             $user = Auth::user();
             $user->update(['token_version' => (int)$user->token_version + 1]);
+            $this->audit->logStaffAction($user, 'auth.logout', 'User', $user->id);
             $data = ['message' => 'Sesión cerrada exitosamente.'];
             return ApiResponseClass::sendResponse($data, 'Sesión cerrada exitosamente.', 200);
         } catch (\Exception $e) {
@@ -152,6 +169,8 @@ class AuthController extends Controller
             ]);
 
             Log::info('Contraseña actualizada exitosamente', ['user_id' => $user->id]);
+
+            $this->audit->logStaffAction($user, 'auth.password_changed', 'User', $user->id);
 
             return ApiResponseClass::sendResponse(
                 ['message' => 'Contraseña actualizada exitosamente'],
@@ -246,6 +265,8 @@ class AuthController extends Controller
 
         // Eliminar el token usado
         DB::table('password_resets')->where('email', $request->email)->delete();
+
+        $this->audit->logStaffAction($user, 'auth.password_reset', 'User', $user->id);
 
         return ApiResponseClass::sendResponse([], 'Contraseña actualizada correctamente.');
     }

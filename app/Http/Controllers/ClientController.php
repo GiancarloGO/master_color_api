@@ -7,11 +7,14 @@ use App\Http\Requests\StoreClientRequest;
 use App\Http\Requests\UpdateClientRequest;
 use App\Http\Resources\ClientResource;
 use App\Models\Client;
+use App\Services\AuditService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 
 class ClientController extends Controller
 {
+    public function __construct(private AuditService $audit) {}
     /**
      * Display a listing of the resource.
      */
@@ -79,10 +82,18 @@ class ClientController extends Controller
             
             $client = Client::create($data);
             $client->load('addresses');
-            
+
+            $actor = Auth::user();
+            if ($actor) {
+                $this->audit->logStaffAction($actor, 'client.created', 'Client', $client->id, null, [
+                    'name'  => $client->name,
+                    'email' => $client->email,
+                ]);
+            }
+
             return ApiResponseClass::sendResponse(
-                new ClientResource($client), 
-                'Cliente creado exitosamente', 
+                new ClientResource($client),
+                'Cliente creado exitosamente',
                 201
             );
         } catch (\Exception $e) {
@@ -123,9 +134,17 @@ class ClientController extends Controller
             
             $client->update($data);
             $client->load('addresses');
-            
+
+            $actor = Auth::user();
+            if ($actor) {
+                $this->audit->logStaffAction($actor, 'client.updated', 'Client', $client->id, null, [
+                    'name'  => $client->name,
+                    'email' => $client->email,
+                ]);
+            }
+
             return ApiResponseClass::sendResponse(
-                new ClientResource($client), 
+                new ClientResource($client),
                 'Cliente actualizado exitosamente'
             );
         } catch (\Exception $e) {
@@ -140,10 +159,18 @@ class ClientController extends Controller
     {
         try {
             $client = Client::findOrFail($id);
+            $actor = Auth::user();
             $client->delete();
-            
+
+            if ($actor) {
+                $this->audit->logStaffAction($actor, 'client.deleted', 'Client', (int) $id, [
+                    'name'  => $client->name,
+                    'email' => $client->email,
+                ]);
+            }
+
             return ApiResponseClass::sendResponse(
-                [], 
+                [],
                 'Cliente eliminado exitosamente'
             );
         } catch (\Exception $e) {
@@ -160,9 +187,17 @@ class ClientController extends Controller
             $client = Client::withTrashed()->findOrFail($id);
             $client->restore();
             $client->load('addresses');
-            
+
+            $actor = Auth::user();
+            if ($actor) {
+                $this->audit->logStaffAction($actor, 'client.restored', 'Client', $client->id, null, [
+                    'name'  => $client->name,
+                    'email' => $client->email,
+                ]);
+            }
+
             return ApiResponseClass::sendResponse(
-                new ClientResource($client), 
+                new ClientResource($client),
                 'Cliente restaurado exitosamente'
             );
         } catch (\Exception $e) {
@@ -177,10 +212,16 @@ class ClientController extends Controller
     {
         try {
             $client = Client::withTrashed()->findOrFail($id);
+            $actor = Auth::user();
+            $snapshot = ['name' => $client->name, 'email' => $client->email];
             $client->forceDelete();
-            
+
+            if ($actor) {
+                $this->audit->logStaffAction($actor, 'client.force_deleted', 'Client', (int) $id, $snapshot);
+            }
+
             return ApiResponseClass::sendResponse(
-                [], 
+                [],
                 'Cliente eliminado permanentemente'
             );
         } catch (\Exception $e) {
@@ -233,9 +274,17 @@ class ClientController extends Controller
             
             $client->save();
             $client->load('addresses');
-            
+
+            $actor = Auth::user();
+            if ($actor) {
+                $verified = (bool) $client->email_verified_at;
+                $this->audit->logStaffAction($actor, 'client.verification_toggled', 'Client', $client->id, null, null, [
+                    'verified' => $verified,
+                ]);
+            }
+
             return ApiResponseClass::sendResponse(
-                new ClientResource($client), 
+                new ClientResource($client),
                 $message
             );
         } catch (\Exception $e) {

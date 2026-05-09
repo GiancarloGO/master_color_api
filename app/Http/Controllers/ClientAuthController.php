@@ -12,6 +12,7 @@ use App\Mail\ClientEmailVerification;
 use App\Mail\ClientResetPassword;
 use App\Models\Client;
 use App\Models\Address;
+use App\Services\AuditService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -24,6 +25,7 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 
 class ClientAuthController extends Controller
 {
+    public function __construct(private AuditService $audit) {}
     /**
      * Register a new client
      */
@@ -88,6 +90,12 @@ class ClientAuthController extends Controller
                 // Log el error pero continuamos con el registro
                 \Log::error('Error al enviar correo de verificación: ' . $mailException->getMessage());
             }
+
+            $this->audit->logClientAction($client, 'client.auth.register', 'Client', $client->id, null, [
+                'name' => $client->name,
+                'email' => $client->email,
+                'client_type' => $client->client_type,
+            ]);
 
             return ApiResponseClass::sendResponse([
                 'user' => new ClientResource($client),
@@ -170,6 +178,10 @@ class ClientAuthController extends Controller
             $client = Client::where('email', $data['email'])->first();
 
             if (!$client) {
+                $this->audit->logSystemAction('client.auth.login_failed', 'Client', null, [
+                    'email' => $data['email'],
+                    'reason' => 'cliente no encontrado',
+                ]);
                 return ApiResponseClass::errorResponse('Credenciales inválidas', 401);
             }
 
@@ -179,14 +191,18 @@ class ClientAuthController extends Controller
 
             // Verify password manually since we're using a custom guard
             if (!Hash::check($data['password'], $client->password)) {
+                $this->audit->logSystemAction('client.auth.login_failed', 'Client', $client->id, [
+                    'email' => $data['email'],
+                    'reason' => 'contraseña incorrecta',
+                ]);
                 return ApiResponseClass::errorResponse('Credenciales inválidas', 401);
             }
-
-            // Set the client in the auth guard and generate token
 
             $token = JWTAuth::claims([
                 'token_version' => $client->token_version,
             ])->fromUser($client);
+
+            $this->audit->logClientAction($client, 'client.auth.login', 'Client', $client->id);
 
             // Cargar direcciones del cliente
             $client->load('addresses');
@@ -346,6 +362,8 @@ class ClientAuthController extends Controller
             ->where('email', $request->email)
             ->delete();
 
+        $this->audit->logClientAction($client, 'client.auth.password_reset', 'Client', $client->id);
+
         return ApiResponseClass::sendResponse([], 'Contraseña actualizada correctamente.');
     }
 
@@ -401,6 +419,8 @@ class ClientAuthController extends Controller
             $client->password = Hash::make($data['password']);
             $client->save();
 
+            $this->audit->logClientAction($client, 'client.auth.password_changed', 'Client', $client->id);
+
             return ApiResponseClass::sendResponse(
                 [],
                 'Contraseña actualizada exitosamente',
@@ -438,6 +458,7 @@ class ClientAuthController extends Controller
             $client = Auth::guard('client')->user();
             $client->increment('token_version');
             $client->save();
+            $this->audit->logClientAction($client, 'client.auth.logout', 'Client', $client->id);
             $data = ['message' => 'Sesión cerrada exitosamente.'];
             return ApiResponseClass::sendResponse($data, 'Sesión cerrada exitosamente.', 200);
         } catch (\Exception $e) {

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Order;
 use App\Models\Payment;
+use App\Services\AuditService;
 use App\Services\StockMovementService;
 use MercadoPago\Client\Preference\PreferenceClient;
 use MercadoPago\Client\Payment\PaymentClient;
@@ -14,9 +15,8 @@ use Exception;
 
 class PaymentService
 {
-    public function __construct()
+    public function __construct(private AuditService $audit)
     {
-        // Configurar MercadoPago con solo el access token
         MercadoPagoConfig::setAccessToken(config('mercadopago.access_token'));
     }
 
@@ -135,6 +135,8 @@ class PaymentService
                 return false;
             }
 
+            $previousPaymentStatus = $payment->status;
+
             // Actualizar estado del pago
             $payment->update([
                 'status' => $this->mapMercadoPagoStatus($mercadoPagoPayment['status']),
@@ -145,6 +147,15 @@ class PaymentService
 
             // Actualizar estado de la orden según el estado del pago
             $this->updateOrderStatus($order, $mercadoPagoPayment['status'], $mercadoPagoPayment['id']);
+
+            $this->audit->logSystemAction('payment.webhook_processed', 'Payment', $payment->id, [
+                'order_id'       => $order->id,
+                'mp_payment_id'  => $mercadoPagoPayment['id'],
+                'mp_status'      => $mercadoPagoPayment['status'],
+                'previous_status'=> $previousPaymentStatus,
+                'new_status'     => $payment->status,
+                'amount'         => $payment->amount,
+            ]);
 
             Log::info('Payment processed successfully via webhook', [
                 'order_id' => $order->id,
@@ -732,12 +743,12 @@ class PaymentService
             // Buscar movimiento de stock asociado a esta orden
             $stockMovement = \App\Models\StockMovement::where('voucher_number', 'LIKE', "VENTA-{$order->id}-%")
                 ->where('movement_type', 'salida')
-                ->whereNull('reversed_at')
+                ->whereNull('canceled_at')
                 ->first();
 
             if ($stockMovement) {
                 // Revertir el movimiento de stock
-                app(StockMovementService::class)->reverseMovement($stockMovement->id);
+                app(StockMovementService::class)->cancelMovement($stockMovement);
 
                 Log::info('Stock rollback executed', [
                     'order_id' => $order->id,

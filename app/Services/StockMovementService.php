@@ -6,11 +6,15 @@ use App\Models\StockMovement;
 use App\Models\DetailMovement;
 use App\Models\Stock;
 use App\Models\Order;
+use App\Models\User;
+use App\Services\AuditService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
 
 class StockMovementService
 {
+    public function __construct(private AuditService $audit) {}
+
     public function createMovement(array $data): StockMovement
     {
         return DB::transaction(function () use ($data) {
@@ -25,6 +29,16 @@ class StockMovementService
                 $this->processStockMovement($movement, $stockData);
             }
 
+            $actor = Auth::user();
+            if ($actor instanceof User) {
+                $this->audit->logStaffAction($actor, 'stock.movement_created', 'StockMovement', $movement->id, null, [
+                    'movement_type'  => $movement->movement_type,
+                    'reason'         => $movement->reason,
+                    'voucher_number' => $movement->voucher_number,
+                    'items_count'    => count($data['stocks']),
+                ]);
+            }
+
             return $movement;
         });
     }
@@ -32,6 +46,12 @@ class StockMovementService
     public function updateMovement(StockMovement $movement, array $data): StockMovement
     {
         return DB::transaction(function () use ($movement, $data) {
+            $oldValues = [
+                'movement_type'  => $movement->movement_type,
+                'reason'         => $movement->reason,
+                'voucher_number' => $movement->voucher_number,
+            ];
+
             $this->revertStockChanges($movement);
 
             $movement->update([
@@ -42,10 +62,19 @@ class StockMovementService
 
             if (isset($data['stocks'])) {
                 $movement->details()->delete();
-                
+
                 foreach ($data['stocks'] as $stockData) {
                     $this->processStockMovement($movement, $stockData);
                 }
+            }
+
+            $actor = Auth::user();
+            if ($actor instanceof User) {
+                $this->audit->logStaffAction($actor, 'stock.movement_updated', 'StockMovement', $movement->id, $oldValues, [
+                    'movement_type'  => $movement->movement_type,
+                    'reason'         => $movement->reason,
+                    'voucher_number' => $movement->voucher_number,
+                ]);
             }
 
             return $movement;
@@ -55,9 +84,20 @@ class StockMovementService
     public function deleteMovement(StockMovement $movement): void
     {
         DB::transaction(function () use ($movement) {
+            $snapshot = [
+                'movement_type'  => $movement->movement_type,
+                'reason'         => $movement->reason,
+                'voucher_number' => $movement->voucher_number,
+            ];
+
             $this->revertStockChanges($movement);
             $movement->details()->delete();
             $movement->delete();
+
+            $actor = Auth::user();
+            if ($actor instanceof User) {
+                $this->audit->logStaffAction($actor, 'stock.movement_deleted', 'StockMovement', $movement->id, $snapshot);
+            }
         });
     }
 
@@ -165,6 +205,17 @@ class StockMovementService
                     'stock_id' => $detail->stock_id,
                     'quantity' => $detail->quantity,
                     'unit_price' => $detail->unit_price
+                ]);
+            }
+
+            $actor = Auth::user();
+            if ($actor instanceof User) {
+                $this->audit->logStaffAction($actor, 'stock.movement_cancelled', 'StockMovement', $movement->id, [
+                    'movement_type'  => $movement->movement_type,
+                    'reason'         => $movement->reason,
+                    'voucher_number' => $movement->voucher_number,
+                ], null, [
+                    'cancellation_movement_id' => $cancelationMovement->id,
                 ]);
             }
 

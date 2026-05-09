@@ -9,6 +9,7 @@ use App\Models\OrderDetail;
 use App\Models\Product;
 use App\Http\Resources\OrderResource;
 use App\Http\Resources\OrderDetailResource;
+use App\Services\AuditService;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
 use App\Models\Client;
@@ -17,6 +18,7 @@ use Illuminate\Support\Facades\Auth;
 
 class ClientOrderController extends Controller
 {
+    public function __construct(private AuditService $audit) {}
     /**
      * Display a listing of the client's orders.
      */
@@ -193,9 +195,15 @@ class ClientOrderController extends Controller
 
             DB::commit();
 
+            $this->audit->logClientAction($client, 'order.created', 'Order', $order->id, null, [
+                'subtotal'    => $order->subtotal,
+                'items_count' => count($productDetails),
+                'status'      => $order->status,
+            ]);
+
             return ApiResponseClass::sendResponse(
-                new OrderResource($order->load('orderDetails')), 
-                'Pedido creado exitosamente', 
+                new OrderResource($order->load('orderDetails')),
+                'Pedido creado exitosamente',
                 201
             );
         } catch (\Exception $e) {
@@ -229,12 +237,30 @@ class ClientOrderController extends Controller
                 return ApiResponseClass::errorResponse('Este pedido no puede ser cancelado en su estado actual', 400);
             }
 
-            $order->status = 'cancelado';
-            $order->save();
+            $previousStatus = $order->status;
+
+            DB::transaction(function () use ($order, $previousStatus) {
+                $order->status = 'cancelado';
+                $order->save();
+
+                // Si el stock ya fue descontado (pago aprobado), revertirlo
+                if (in_array($previousStatus, ['pendiente', 'confirmado'])) {
+                    app(PaymentService::class)->rollbackOrderStock(
+                        $order,
+                        "Pedido cancelado por el cliente desde '{$previousStatus}'"
+                    );
+                }
+            });
+
+            $this->audit->logClientAction($client, 'order.cancelled', 'Order', $order->id, [
+                'status' => $previousStatus,
+            ], [
+                'status' => 'cancelado',
+            ]);
 
             return ApiResponseClass::sendResponse(
-                new OrderResource($order), 
-                'Pedido cancelado exitosamente', 
+                new OrderResource($order),
+                'Pedido cancelado exitosamente',
                 200
             );
         } catch (\Exception $e) {

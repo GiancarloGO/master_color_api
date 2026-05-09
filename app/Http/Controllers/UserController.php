@@ -6,7 +6,9 @@ use App\Http\Requests\UserStoreRequest;
 use App\Http\Requests\UserUpdateRequest;
 use App\Http\Resources\UserResource;
 use App\Classes\ApiResponseClass;
+use App\Services\AuditService;
 use App\Services\UserService;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -14,7 +16,8 @@ use Illuminate\Validation\ValidationException;
 class UserController extends Controller
 {
     public function __construct(
-        private UserService $userService
+        private UserService $userService,
+        private AuditService $audit,
     ) {}
     public function index()
     {
@@ -35,7 +38,16 @@ class UserController extends Controller
     {
         try {
             $user = $this->userService->createUser($request);
-            
+
+            $actor = Auth::user();
+            if ($actor) {
+                $this->audit->logStaffAction($actor, 'user.created', 'User', $user->id, null, [
+                    'name'    => $user->name,
+                    'email'   => $user->email,
+                    'role_id' => $user->role_id,
+                ]);
+            }
+
             return ApiResponseClass::sendResponse(
                 new UserResource($user),
                 'Usuario creado exitosamente',
@@ -80,9 +92,18 @@ class UserController extends Controller
     {
         try {
             $user = $this->userService->updateUser($request, (int) $id);
-            
+
             if (!$user) {
                 return ApiResponseClass::errorResponse('Usuario no encontrado', 404);
+            }
+
+            $actor = Auth::user();
+            if ($actor) {
+                $this->audit->logStaffAction($actor, 'user.updated', 'User', $user->id, null, [
+                    'name'    => $user->name,
+                    'email'   => $user->email,
+                    'role_id' => $user->role_id,
+                ]);
             }
 
             return ApiResponseClass::sendResponse(
@@ -108,10 +129,19 @@ class UserController extends Controller
     public function destroy(string $id)
     {
         try {
+            $targetUser = $this->userService->getUserById((int) $id);
             $deleted = $this->userService->deleteUser((int) $id);
-            
+
             if (!$deleted) {
                 return ApiResponseClass::errorResponse('Usuario no encontrado', 404);
+            }
+
+            $actor = Auth::user();
+            if ($actor && $targetUser) {
+                $this->audit->logStaffAction($actor, 'user.deleted', 'User', (int) $id, [
+                    'name'  => $targetUser->name,
+                    'email' => $targetUser->email,
+                ]);
             }
 
             return ApiResponseClass::sendResponse(
@@ -139,11 +169,18 @@ class UserController extends Controller
             }
 
             $newPassword = $this->generateSecurePassword();
-            
+
             $user->password = Hash::make($newPassword);
             $user->save();
 
             Log::info('Password reset for user: ' . $user->email, ['admin_user' => auth()->user()?->email]);
+
+            $actor = Auth::user();
+            if ($actor) {
+                $this->audit->logStaffAction($actor, 'user.password_reset', 'User', $user->id, null, null, [
+                    'target_email' => $user->email,
+                ]);
+            }
 
             return ApiResponseClass::sendResponse(
                 ['new_password' => $newPassword],

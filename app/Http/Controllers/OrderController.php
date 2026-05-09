@@ -11,11 +11,13 @@ use App\Models\Client;
 use App\Http\Resources\OrderResource;
 use App\Classes\ApiResponseClass;
 use App\Events\OrderStatusChanged;
+use App\Services\AuditService;
 use Illuminate\Support\Facades\Auth;
 use App\Services\PaymentService;
 
 class OrderController extends Controller
 {
+    public function __construct(private AuditService $audit) {}
     /**
      * Display a listing of all orders for staff management.
      */
@@ -132,12 +134,12 @@ class OrderController extends Controller
             DB::transaction(function () use ($order, $newStatus, $currentStatus, $request) {
                 // Detectar si se está cancelando el pedido
                 $isCancelling = $newStatus === 'cancelado' && $currentStatus !== 'cancelado';
-                
+
                 // Si se está cancelando, hacer rollback del stock
                 if ($isCancelling) {
                     $paymentService = app(PaymentService::class);
                     $paymentService->rollbackOrderStock($order, "Pedido cancelado manualmente desde '{$currentStatus}'");
-                    
+
                     Log::info('Order cancelled, stock rollback triggered', [
                         'order_id' => $order->id,
                         'previous_status' => $currentStatus,
@@ -145,16 +147,25 @@ class OrderController extends Controller
                         'user_id' => Auth::id()
                     ]);
                 }
-                
+
                 $order->status = $newStatus;
                 $order->user_id = Auth::id(); // Track who updated the order
-                
+
                 if ($request->has('observations')) {
                     $order->observations = $request->observations;
                 }
-                
+
                 $order->save();
             });
+
+            $staff = Auth::user();
+            if ($staff) {
+                $this->audit->logStaffAction($staff, 'order.status_changed', 'Order', $order->id, [
+                    'status' => $currentStatus,
+                ], [
+                    'status' => $newStatus,
+                ], $request->has('observations') ? ['observations' => $request->observations] : null);
+            }
             
             return ApiResponseClass::sendResponse(
                 new OrderResource($order->load(['client', 'orderDetails.product', 'deliveryAddress'])),
