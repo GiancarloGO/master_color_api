@@ -16,6 +16,7 @@ use App\Http\Controllers\StockMovementController;
 use App\Http\Controllers\WebhookController;
 use Illuminate\Support\Facades\Route;
 
+use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\DiagnosticController;
 
 /*
@@ -245,6 +246,17 @@ if (app()->environment('local')) {
     })->name('test.mercadopago');
 }
 
+
+/*
+|--------------------------------------------------------------------------
+| AUDIT LOG ROUTES (ADMIN ONLY)
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(['jwt.auth', 'check.token.version', 'admin.only'])->group(function () {
+    Route::get('audit-logs', [AuditLogController::class, 'index'])->name('audit-logs.index');
+    Route::get('audit-logs/{id}', [AuditLogController::class, 'show'])->name('audit-logs.show');
+});
 
 /*
 |--------------------------------------------------------------------------
