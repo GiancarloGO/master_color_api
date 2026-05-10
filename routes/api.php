@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ChatbotController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\ClientController;
@@ -266,3 +267,13 @@ Route::middleware(['jwt.auth', 'check.token.version', 'admin.only'])->group(func
 
 Route::post('document/lookup', [DocumentLookupController::class, 'lookup'])
     ->name('document.lookup');
+
+/*
+|--------------------------------------------------------------------------
+| CHATBOT ROUTES (PUBLIC)
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('chatbot')->middleware('throttle:20,1')->group(function () {
+    Route::post('message', [ChatbotController::class, 'message'])->name('chatbot.message');
+});
