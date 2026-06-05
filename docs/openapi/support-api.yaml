@@ -810,7 +810,7 @@ components:
         message: { type: string, example: 'OK' }
         status: { type: integer, example: 200 }
         data: {}
-        errors: { type: 'null' }
+        errors: { nullable: true }
     ApiError:
       type: object
       properties:
@@ -824,7 +824,7 @@ components:
       properties:
         success: { type: boolean, example: false }
         message: { type: string, example: 'Validation errors' }
-        data: { type: 'null' }
+        data: { nullable: true }
         errors:
           type: object
           additionalProperties:
