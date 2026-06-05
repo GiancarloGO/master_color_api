@@ -1,0 +1,1049 @@
+openapi: 3.1.0
+info:
+  title: MasterColor — API de Soporte Técnico
+  version: 0.1.0
+  description: >
+    Contrato de la API para la app móvil (Flutter) de **soporte técnico de unidades
+    vendidas**. Cubre el registro de unidades, garantías y el ciclo de vida de
+    tickets de soporte para dos audiencias: **clientes** (guard JWT `client`) y
+    **staff/técnicos** (guard JWT `users`).
+
+    Todas las respuestas usan el envelope estándar del backend:
+    `{ success, message, status, data, errors }`.
+
+    Estado: borrador de diseño (Sprint 0). Aún no implementado en el backend.
+  contact:
+    name: Equipo MasterColor
+
+servers:
+  - url: http://localhost:8000/api
+    description: Local
+  - url: https://api.mastercolor.example/api
+    description: Producción (placeholder)
+
+tags:
+  - name: Cliente · Unidades
+    description: Unidades vendidas y garantías del cliente autenticado.
+  - name: Cliente · Tickets
+    description: Tickets de soporte creados y seguidos por el cliente.
+  - name: Cliente · Dispositivos
+    description: Registro de tokens push (FCM) del cliente.
+  - name: Staff · Tickets
+    description: Gestión y atención de tickets por técnicos/staff.
+  - name: Staff · Unidades
+    description: Consulta de unidades vendidas por el staff.
+  - name: Staff · Métricas
+    description: Indicadores de soporte (SLA, carga por técnico).
+  - name: Staff · Dispositivos
+    description: Registro de tokens push (FCM) del staff.
+
+security:
+  - clientAuth: []
+
+paths:
+  # ───────────────────────────── CLIENTE · UNIDADES ─────────────────────────────
+  /client/units:
+    get:
+      tags: [Cliente · Unidades]
+      summary: Listar mis unidades vendidas
+      description: Unidades derivadas de las órdenes del cliente más las registradas manualmente.
+      security: [{ clientAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/SoldUnitStatus' }
+        - name: warranty
+          in: query
+          description: Filtra por estado de garantía.
+          schema: { type: string, enum: [vigente, vencida] }
+      responses:
+        '200':
+          description: Lista paginada de unidades.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/SoldUnit' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Cliente · Unidades]
+      summary: Registrar una unidad manualmente
+      description: >
+        Para unidades compradas fuera del canal online. El `serial_number` es
+        opcional (productos no serializados). Puede adjuntar comprobante de compra.
+      security: [{ clientAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/SoldUnitRegisterRequest' }
+      responses:
+        '201':
+          description: Unidad registrada.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/SoldUnit' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /client/units/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [Cliente · Unidades]
+      summary: Detalle de una unidad
+      security: [{ clientAuth: [] }]
+      responses:
+        '200':
+          description: Detalle de la unidad (incluye garantía y tickets asociados).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/SoldUnitDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /client/units/{id}/warranty:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [Cliente · Unidades]
+      summary: Estado de garantía de una unidad
+      security: [{ clientAuth: [] }]
+      responses:
+        '200':
+          description: Información de garantía.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Warranty' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ───────────────────────────── CLIENTE · TICKETS ─────────────────────────────
+  /client/support/tickets:
+    get:
+      tags: [Cliente · Tickets]
+      summary: Listar mis tickets de soporte
+      security: [{ clientAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/TicketStatus' }
+      responses:
+        '200':
+          description: Lista paginada de tickets.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/SupportTicket' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Cliente · Tickets]
+      summary: Crear un ticket de soporte
+      security: [{ clientAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TicketCreateRequest' }
+      responses:
+        '201':
+          description: Ticket creado.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/SupportTicket' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /client/support/tickets/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [Cliente · Tickets]
+      summary: Detalle de un ticket (con conversación)
+      security: [{ clientAuth: [] }]
+      responses:
+        '200':
+          description: Detalle del ticket con mensajes públicos y adjuntos.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/SupportTicketDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /client/support/tickets/{id}/messages:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [Cliente · Tickets]
+      summary: Enviar un mensaje en el ticket
+      security: [{ clientAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string, example: '¿Hay novedades sobre mi caso?' }
+      responses:
+        '201':
+          description: Mensaje agregado.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/TicketMessage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /client/support/tickets/{id}/attachments:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [Cliente · Tickets]
+      summary: Adjuntar archivos al ticket
+      security: [{ clientAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  items: { type: string, format: binary }
+                  description: Imágenes o video (máx. recomendado 5 por petición).
+                message_id:
+                  type: integer
+                  description: Adjuntar a un mensaje específico (opcional).
+      responses:
+        '201':
+          description: Adjuntos cargados.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/TicketAttachment' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /client/support/tickets/{id}/rate:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [Cliente · Tickets]
+      summary: Calificar la atención de un ticket resuelto
+      security: [{ clientAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rating]
+              properties:
+                rating: { type: integer, minimum: 1, maximum: 5, example: 5 }
+                comment: { type: string, nullable: true }
+      responses:
+        '200':
+          description: Calificación registrada.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/SupportTicket' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /client/support/tickets/{id}/reopen:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    put:
+      tags: [Cliente · Tickets]
+      summary: Reabrir un ticket resuelto/cerrado
+      security: [{ clientAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, example: 'El problema volvió a presentarse.' }
+      responses:
+        '200':
+          description: Ticket reabierto (pasa a `en_proceso`).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/SupportTicket' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  # ───────────────────────────── CLIENTE · DISPOSITIVOS ─────────────────────────
+  /client/devices:
+    post:
+      tags: [Cliente · Dispositivos]
+      summary: Registrar token push (FCM) del cliente
+      security: [{ clientAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DeviceTokenRequest' }
+      responses:
+        '200':
+          description: Token registrado/actualizado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiSuccess' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /client/devices/{token}:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema: { type: string }
+    delete:
+      tags: [Cliente · Dispositivos]
+      summary: Eliminar token push (logout/desinstalación)
+      security: [{ clientAuth: [] }]
+      responses:
+        '200':
+          description: Token eliminado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiSuccess' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ────────────────────────────── STAFF · TICKETS ──────────────────────────────
+  /support/tickets:
+    get:
+      tags: [Staff · Tickets]
+      summary: Listar/filtrar tickets (cola de soporte)
+      security: [{ staffAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/TicketStatus' }
+        - name: priority
+          in: query
+          schema: { $ref: '#/components/schemas/TicketPriority' }
+        - name: category
+          in: query
+          schema: { $ref: '#/components/schemas/TicketCategory' }
+        - name: assigned_user_id
+          in: query
+          schema: { type: integer }
+        - name: client_id
+          in: query
+          schema: { type: integer }
+        - name: search
+          in: query
+          description: Busca por código, asunto o cliente.
+          schema: { type: string }
+      responses:
+        '200':
+          description: Lista paginada de tickets.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/SupportTicket' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /support/tickets/mine:
+    get:
+      tags: [Staff · Tickets]
+      summary: Tickets asignados al técnico autenticado
+      security: [{ staffAuth: [] }]
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/TicketStatus' }
+      responses:
+        '200':
+          description: Lista de tickets asignados.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/SupportTicket' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /support/tickets/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [Staff · Tickets]
+      summary: Detalle completo del ticket (incluye notas internas)
+      security: [{ staffAuth: [] }]
+      responses:
+        '200':
+          description: Detalle del ticket con conversación completa e historial.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/SupportTicketDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /support/tickets/{id}/assign:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    patch:
+      tags: [Staff · Tickets]
+      summary: Asignar el ticket a un técnico
+      security: [{ staffAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [assigned_user_id]
+              properties:
+                assigned_user_id: { type: integer, example: 7 }
+      responses:
+        '200':
+          description: Ticket asignado (pasa a `asignado`).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/SupportTicket' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /support/tickets/{id}/status:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    patch:
+      tags: [Staff · Tickets]
+      summary: Cambiar el estado del ticket
+      description: >
+        Transiciones válidas:
+        `abierto→asignado`, `asignado→en_proceso`,
+        `en_proceso⇄en_espera_cliente`, `en_proceso→resuelto`,
+        `resuelto→cerrado`, `*→cancelado`.
+      security: [{ staffAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { $ref: '#/components/schemas/TicketStatus' }
+                note: { type: string, nullable: true }
+      responses:
+        '200':
+          description: Estado actualizado.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/SupportTicket' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /support/tickets/{id}/messages:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [Staff · Tickets]
+      summary: Responder o agregar nota interna
+      security: [{ staffAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string }
+                is_internal:
+                  type: boolean
+                  default: false
+                  description: Si es `true`, la nota no es visible para el cliente.
+      responses:
+        '201':
+          description: Mensaje/nota agregado.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/TicketMessage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /support/tickets/{id}/diagnosis:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [Staff · Tickets]
+      summary: Registrar diagnóstico técnico y cierre de servicio
+      security: [{ staffAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DiagnosisRequest' }
+      responses:
+        '200':
+          description: Diagnóstico registrado.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/SupportTicketDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  # ────────────────────────────── STAFF · UNIDADES ─────────────────────────────
+  /support/units:
+    get:
+      tags: [Staff · Unidades]
+      summary: Buscar unidades vendidas
+      security: [{ staffAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - name: serial_number
+          in: query
+          schema: { type: string }
+        - name: client_id
+          in: query
+          schema: { type: integer }
+        - name: product_id
+          in: query
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Lista paginada de unidades.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/SoldUnit' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /support/units/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [Staff · Unidades]
+      summary: Detalle de una unidad (con historial de tickets)
+      security: [{ staffAuth: [] }]
+      responses:
+        '200':
+          description: Detalle de la unidad.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/SoldUnitDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Staff · Unidades]
+      summary: Actualizar una unidad (asignar nº de serie / estado)
+      security: [{ staffAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                serial_number: { type: string, nullable: true, example: 'SN-MC200-000457' }
+                status: { $ref: '#/components/schemas/SoldUnitStatus' }
+      responses:
+        '200':
+          description: Unidad actualizada.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/SoldUnit' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  # ────────────────────────────── STAFF · MÉTRICAS ─────────────────────────────
+  /support/metrics:
+    get:
+      tags: [Staff · Métricas]
+      summary: Indicadores del área de soporte
+      security: [{ staffAuth: [] }]
+      parameters:
+        - name: date_from
+          in: query
+          schema: { type: string, format: date }
+        - name: date_to
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Métricas agregadas.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/SupportMetrics' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  # ─────────────────────────── STAFF · DISPOSITIVOS ────────────────────────────
+  /support/devices:
+    post:
+      tags: [Staff · Dispositivos]
+      summary: Registrar token push (FCM) del staff
+      security: [{ staffAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DeviceTokenRequest' }
+      responses:
+        '200':
+          description: Token registrado/actualizado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiSuccess' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+components:
+  securitySchemes:
+    clientAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT del guard `client` (cliente final). Obtenido en `/client/auth/login`.
+    staffAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT del guard `users` (staff/técnico). Obtenido en `/auth/login`.
+
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    PerPage:
+      name: per_page
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 15 }
+
+  responses:
+    Unauthorized:
+      description: No autenticado (token ausente o inválido).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+          example: { success: false, message: 'No autenticado', status: 401, data: [], errors: null }
+    Forbidden:
+      description: Sin permisos para esta acción.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+          example: { success: false, message: 'No autorizado', status: 403, data: [], errors: null }
+    NotFound:
+      description: Recurso no encontrado.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+          example: { success: false, message: 'Recurso no encontrado', status: 404, data: [], errors: null }
+    Conflict:
+      description: Transición de estado no permitida.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+          example: { success: false, message: "No se puede cambiar de 'cerrado' a 'asignado'", status: 409, data: [], errors: null }
+    ValidationError:
+      description: Error de validación.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ValidationError' }
+          example:
+            success: false
+            message: 'Validation errors'
+            data: null
+            errors:
+              subject: ['El campo subject es obligatorio.']
+
+  schemas:
+    # ── Envelope estándar ──
+    ApiSuccess:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string, example: 'OK' }
+        status: { type: integer, example: 200 }
+        data: {}
+        errors: { type: 'null' }
+    ApiError:
+      type: object
+      properties:
+        success: { type: boolean, example: false }
+        message: { type: string }
+        status: { type: integer }
+        data: { type: array, items: {}, example: [] }
+        errors: { nullable: true }
+    ValidationError:
+      type: object
+      properties:
+        success: { type: boolean, example: false }
+        message: { type: string, example: 'Validation errors' }
+        data: { type: 'null' }
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string }
+    Pagination:
+      type: object
+      description: Metadatos cuando la respuesta es paginada (estilo Laravel).
+      properties:
+        current_page: { type: integer }
+        last_page: { type: integer }
+        per_page: { type: integer }
+        total: { type: integer }
+
+    # ── Enums ──
+    SoldUnitStatus:
+      type: string
+      enum: [activa, en_servicio, baja]
+    TicketCategory:
+      type: string
+      enum: [garantia, instalacion, falla, consulta, otro]
+    TicketPriority:
+      type: string
+      enum: [baja, media, alta, urgente]
+    TicketStatus:
+      type: string
+      enum: [abierto, asignado, en_proceso, en_espera_cliente, resuelto, cerrado, cancelado]
+    TicketChannel:
+      type: string
+      enum: [app, web, telefono]
+    DevicePlatform:
+      type: string
+      enum: [android, ios]
+    AuthorType:
+      type: string
+      enum: [client, user]
+
+    # ── Unidades / Garantía ──
+    SoldUnit:
+      type: object
+      properties:
+        id: { type: integer, example: 1024 }
+        client_id: { type: integer, example: 33 }
+        product_id: { type: integer, example: 88 }
+        product_name: { type: string, example: 'Máquina tintométrica MC-200' }
+        order_id: { type: integer, nullable: true, example: 512 }
+        serial_number:
+          type: string
+          nullable: true
+          description: Opcional (productos no serializados).
+          example: 'SN-MC200-000457'
+        purchase_date: { type: string, format: date, example: '2026-01-15' }
+        warranty_months: { type: integer, example: 24 }
+        warranty_expires_at: { type: string, format: date, nullable: true, example: '2028-01-15' }
+        warranty_active: { type: boolean, example: true }
+        registration_source: { type: string, enum: [order, manual], example: order }
+        status: { $ref: '#/components/schemas/SoldUnitStatus' }
+        created_at: { type: string, format: date-time }
+    SoldUnitDetail:
+      allOf:
+        - $ref: '#/components/schemas/SoldUnit'
+        - type: object
+          properties:
+            proof_file_url: { type: string, nullable: true }
+            warranty: { $ref: '#/components/schemas/Warranty' }
+            tickets:
+              type: array
+              items: { $ref: '#/components/schemas/SupportTicket' }
+    Warranty:
+      type: object
+      properties:
+        sold_unit_id: { type: integer, example: 1024 }
+        purchase_date: { type: string, format: date }
+        warranty_months: { type: integer, example: 24 }
+        expires_at: { type: string, format: date, nullable: true }
+        active: { type: boolean, example: true }
+        days_remaining: { type: integer, example: 580 }
+        status: { type: string, enum: [vigente, vencida, sin_garantia], example: vigente }
+    SoldUnitRegisterRequest:
+      type: object
+      required: [product_id, purchase_date]
+      properties:
+        product_id: { type: integer, example: 88 }
+        serial_number: { type: string, nullable: true }
+        purchase_date: { type: string, format: date, example: '2026-01-15' }
+        proof_file:
+          type: string
+          format: binary
+          description: Comprobante de compra (imagen jpg/jpeg/png/webp, máx 5MB). Opcional.
+
+    # ── Tickets ──
+    SupportTicket:
+      type: object
+      properties:
+        id: { type: integer, example: 4501 }
+        code: { type: string, example: 'SOP-2026-0001' }
+        client_id: { type: integer, example: 33 }
+        sold_unit_id: { type: integer, nullable: true, example: 1024 }
+        product_id: { type: integer, nullable: true, example: 88 }
+        category: { $ref: '#/components/schemas/TicketCategory' }
+        priority: { $ref: '#/components/schemas/TicketPriority' }
+        subject: { type: string, example: 'La máquina no enciende' }
+        description: { type: string }
+        status: { $ref: '#/components/schemas/TicketStatus' }
+        channel: { $ref: '#/components/schemas/TicketChannel' }
+        assigned_user_id: { type: integer, nullable: true, example: 7 }
+        assigned_user_name: { type: string, nullable: true, example: 'Carlos Pérez' }
+        is_warranty_covered: { type: boolean, nullable: true, example: true }
+        sla_due_at: { type: string, format: date-time, nullable: true }
+        first_response_at: { type: string, format: date-time, nullable: true }
+        resolved_at: { type: string, format: date-time, nullable: true }
+        closed_at: { type: string, format: date-time, nullable: true }
+        rating: { type: integer, nullable: true, minimum: 1, maximum: 5 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    SupportTicketDetail:
+      allOf:
+        - $ref: '#/components/schemas/SupportTicket'
+        - type: object
+          properties:
+            sold_unit: { $ref: '#/components/schemas/SoldUnit' }
+            messages:
+              type: array
+              items: { $ref: '#/components/schemas/TicketMessage' }
+            attachments:
+              type: array
+              items: { $ref: '#/components/schemas/TicketAttachment' }
+            status_history:
+              type: array
+              items: { $ref: '#/components/schemas/TicketStatusHistory' }
+            diagnosis: { type: string, nullable: true }
+            parts_used: { type: string, nullable: true }
+    TicketCreateRequest:
+      type: object
+      required: [category, subject, description]
+      properties:
+        sold_unit_id:
+          type: integer
+          nullable: true
+          description: Unidad asociada (opcional para consultas generales).
+        category: { $ref: '#/components/schemas/TicketCategory' }
+        priority:
+          $ref: '#/components/schemas/TicketPriority'
+        subject: { type: string, maxLength: 150, example: 'La máquina no enciende' }
+        description: { type: string, example: 'Al conectar no muestra señal de encendido.' }
+    TicketMessage:
+      type: object
+      properties:
+        id: { type: integer }
+        ticket_id: { type: integer }
+        author_type: { $ref: '#/components/schemas/AuthorType' }
+        author_id: { type: integer }
+        author_name: { type: string, example: 'Carlos Pérez' }
+        body: { type: string }
+        is_internal: { type: boolean, example: false }
+        read_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        attachments:
+          type: array
+          items: { $ref: '#/components/schemas/TicketAttachment' }
+    TicketAttachment:
+      type: object
+      properties:
+        id: { type: integer }
+        ticket_id: { type: integer }
+        message_id: { type: integer, nullable: true }
+        url: { type: string, example: 'https://.../storage/tickets/abc.jpg' }
+        file_type: { type: string, example: 'image/jpeg' }
+        original_name: { type: string, example: 'foto-falla.jpg' }
+        created_at: { type: string, format: date-time }
+    TicketStatusHistory:
+      type: object
+      properties:
+        id: { type: integer }
+        from_status: { type: string, nullable: true }
+        to_status: { $ref: '#/components/schemas/TicketStatus' }
+        changed_by_type: { $ref: '#/components/schemas/AuthorType' }
+        changed_by_name: { type: string }
+        note: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+    DiagnosisRequest:
+      type: object
+      required: [diagnosis]
+      properties:
+        diagnosis: { type: string, example: 'Fuente de poder dañada; se reemplaza.' }
+        parts_used: { type: string, nullable: true, example: 'Fuente 24V x1' }
+        resolve:
+          type: boolean
+          default: false
+          description: Si es `true`, marca el ticket como `resuelto`.
+
+    # ── Métricas ──
+    SupportMetrics:
+      type: object
+      properties:
+        total_tickets: { type: integer, example: 320 }
+        open_tickets: { type: integer, example: 42 }
+        unassigned_tickets: { type: integer, example: 8 }
+        resolved_this_month: { type: integer, example: 96 }
+        avg_first_response_hours: { type: number, format: float, example: 3.5 }
+        avg_resolution_hours: { type: number, format: float, example: 28.2 }
+        sla_breached: { type: integer, example: 5 }
+        by_status:
+          type: object
+          additionalProperties: { type: integer }
+        by_technician:
+          type: array
+          items:
+            type: object
+            properties:
+              user_id: { type: integer }
+              name: { type: string }
+              assigned: { type: integer }
+              resolved: { type: integer }
+
+    # ── Dispositivos ──
+    DeviceTokenRequest:
+      type: object
+      required: [token, platform]
+      properties:
+        token: { type: string, description: 'Token FCM del dispositivo.' }
+        platform: { $ref: '#/components/schemas/DevicePlatform' }

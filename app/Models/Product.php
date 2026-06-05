@@ -22,7 +22,12 @@ class Product extends Model
         'category',
         'presentation',
         'unidad',
+        'default_warranty_months',
         'user_id'
+    ];
+
+    protected $casts = [
+        'default_warranty_months' => 'integer',
     ];
 
     public function getImageUrlAttribute($value)
@@ -52,5 +57,13 @@ class Product extends Model
     public function orderDetails(): HasMany
     {
         return $this->hasMany(OrderDetail::class);
+    }
+
+    /**
+     * Get the sold units for the product.
+     */
+    public function soldUnits(): HasMany
+    {
+        return $this->hasMany(SoldUnit::class);
     }
 }

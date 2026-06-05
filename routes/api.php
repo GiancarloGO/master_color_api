@@ -19,6 +19,13 @@ use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\DiagnosticController;
+use App\Http\Controllers\ClientSoldUnitController;
+use App\Http\Controllers\SupportUnitController;
+use App\Http\Controllers\ClientSupportTicketController;
+use App\Http\Controllers\SupportTicketController;
+use App\Http\Controllers\ClientDeviceController;
+use App\Http\Controllers\SupportDeviceController;
+use App\Http\Controllers\SupportMetricsController;
 
 /*
 |--------------------------------------------------------------------------
@@ -276,4 +283,87 @@ Route::post('document/lookup', [DocumentLookupController::class, 'lookup'])
 
 Route::prefix('chatbot')->middleware('throttle:20,1')->group(function () {
     Route::post('message', [ChatbotController::class, 'message'])->name('chatbot.message');
+});
+
+/*
+|--------------------------------------------------------------------------
+| SUPPORT — SOLD UNITS / WARRANTY (CLIENT)
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('client/units')->middleware([\App\Http\Middleware\ClientAuth::class])->group(function () {
+    Route::get('/', [ClientSoldUnitController::class, 'index'])->name('client.units.index');
+    Route::post('/', [ClientSoldUnitController::class, 'store'])->name('client.units.store');
+    Route::get('/{id}', [ClientSoldUnitController::class, 'show'])->whereNumber('id')->name('client.units.show');
+    Route::get('/{id}/warranty', [ClientSoldUnitController::class, 'warranty'])->whereNumber('id')->name('client.units.warranty');
+});
+
+/*
+|--------------------------------------------------------------------------
+| SUPPORT — SOLD UNITS (STAFF)
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('support/units')->middleware(['jwt.auth', 'check.token.version'])->group(function () {
+    Route::get('/', [SupportUnitController::class, 'index'])->name('support.units.index');
+    Route::get('/{id}', [SupportUnitController::class, 'show'])->whereNumber('id')->name('support.units.show');
+    Route::patch('/{id}', [SupportUnitController::class, 'update'])->whereNumber('id')->name('support.units.update');
+});
+
+/*
+|--------------------------------------------------------------------------
+| SUPPORT — METRICS (STAFF)
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(['jwt.auth', 'check.token.version'])->group(function () {
+    Route::get('support/metrics', [SupportMetricsController::class, 'index'])->name('support.metrics');
+});
+
+/*
+|--------------------------------------------------------------------------
+| SUPPORT — TICKETS (CLIENT)
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('client/support/tickets')->middleware([\App\Http\Middleware\ClientAuth::class])->group(function () {
+    Route::get('/', [ClientSupportTicketController::class, 'index'])->name('client.tickets.index');
+    Route::post('/', [ClientSupportTicketController::class, 'store'])->name('client.tickets.store');
+    Route::get('/{id}', [ClientSupportTicketController::class, 'show'])->whereNumber('id')->name('client.tickets.show');
+    Route::post('/{id}/messages', [ClientSupportTicketController::class, 'messages'])->whereNumber('id')->name('client.tickets.messages');
+    Route::post('/{id}/attachments', [ClientSupportTicketController::class, 'attachments'])->whereNumber('id')->name('client.tickets.attachments');
+    Route::post('/{id}/rate', [ClientSupportTicketController::class, 'rate'])->whereNumber('id')->name('client.tickets.rate');
+    Route::put('/{id}/reopen', [ClientSupportTicketController::class, 'reopen'])->whereNumber('id')->name('client.tickets.reopen');
+});
+
+/*
+|--------------------------------------------------------------------------
+| SUPPORT — TICKETS (STAFF)
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('support/tickets')->middleware(['jwt.auth', 'check.token.version'])->group(function () {
+    Route::get('/', [SupportTicketController::class, 'index'])->name('support.tickets.index');
+    Route::get('/mine', [SupportTicketController::class, 'mine'])->name('support.tickets.mine');
+    Route::get('/{id}', [SupportTicketController::class, 'show'])->whereNumber('id')->name('support.tickets.show');
+    Route::patch('/{id}/assign', [SupportTicketController::class, 'assign'])->whereNumber('id')->name('support.tickets.assign');
+    Route::patch('/{id}/status', [SupportTicketController::class, 'status'])->whereNumber('id')->name('support.tickets.status');
+    Route::post('/{id}/messages', [SupportTicketController::class, 'messages'])->whereNumber('id')->name('support.tickets.messages');
+    Route::post('/{id}/diagnosis', [SupportTicketController::class, 'diagnosis'])->whereNumber('id')->name('support.tickets.diagnosis');
+});
+
+/*
+|--------------------------------------------------------------------------
+| SUPPORT — DEVICE TOKENS (PUSH FCM)
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('client/devices')->middleware([\App\Http\Middleware\ClientAuth::class])->group(function () {
+    Route::post('/', [ClientDeviceController::class, 'store'])->name('client.devices.store');
+    Route::delete('/{token}', [ClientDeviceController::class, 'destroy'])->name('client.devices.destroy');
+});
+
+Route::prefix('support/devices')->middleware(['jwt.auth', 'check.token.version'])->group(function () {
+    Route::post('/', [SupportDeviceController::class, 'store'])->name('support.devices.store');
+    Route::delete('/{token}', [SupportDeviceController::class, 'destroy'])->name('support.devices.destroy');
 });

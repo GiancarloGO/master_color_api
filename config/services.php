@@ -39,4 +39,9 @@ return [
         'token' => env('APISPERU_TOKEN'),
     ],
 
+    'fcm' => [
+        // Server key (FCM legacy HTTP API). Si está vacío, el push se omite con gracia.
+        'key' => env('FCM_SERVER_KEY'),
+    ],
+
 ];

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 
@@ -51,6 +52,30 @@ class Client extends Authenticatable implements JWTSubject
     public function orders(): HasMany
     {
         return $this->hasMany(Order::class);
+    }
+
+    /**
+     * Get the sold units (registered/purchased) for the client.
+     */
+    public function soldUnits(): HasMany
+    {
+        return $this->hasMany(SoldUnit::class);
+    }
+
+    /**
+     * Get the support tickets for the client.
+     */
+    public function supportTickets(): HasMany
+    {
+        return $this->hasMany(SupportTicket::class);
+    }
+
+    /**
+     * Tokens push (FCM) registrados por el cliente.
+     */
+    public function deviceTokens(): MorphMany
+    {
+        return $this->morphMany(DeviceToken::class, 'tokenable');
     }
 
     /**

@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 
 class User extends Authenticatable implements JWTSubject
@@ -104,6 +105,22 @@ class User extends Authenticatable implements JWTSubject
     public function orders(): HasMany
     {
         return $this->hasMany(Order::class);
+    }
+
+    /**
+     * Tickets de soporte asignados a este usuario (técnico).
+     */
+    public function assignedTickets(): HasMany
+    {
+        return $this->hasMany(SupportTicket::class, 'assigned_user_id');
+    }
+
+    /**
+     * Tokens push (FCM) registrados por el usuario (staff/técnico).
+     */
+    public function deviceTokens(): MorphMany
+    {
+        return $this->morphMany(DeviceToken::class, 'tokenable');
     }
 
 }

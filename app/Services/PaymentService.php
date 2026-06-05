@@ -184,6 +184,15 @@ class PaymentService
         DB::transaction(function () use ($order, $mercadoPagoStatus, $paymentId) {
             switch ($mercadoPagoStatus) {
                 case 'approved':
+                    // No reactivar pedidos ya finalizados/cancelados ante un webhook tardío.
+                    if (!in_array($order->status, ['pendiente_pago', 'pago_fallido'])) {
+                        Log::info('Approved webhook ignored, order not in a payable state', [
+                            'order_id' => $order->id,
+                            'current_status' => $order->status,
+                        ]);
+                        break;
+                    }
+
                     $updateData = ['status' => 'pendiente'];
                     if ($paymentId) {
                         $updateData['codigo_payment'] = $paymentId;
@@ -191,8 +200,10 @@ class PaymentService
                     $order->update($updateData);
                     // Descontar stock automáticamente
                     app(StockMovementService::class)->processOrderStockReduction($order);
-                    
-                    Log::info('Order approved and stock reduced', [
+                    // Generar las unidades vendidas (para soporte técnico / garantías)
+                    app(\App\Services\SoldUnitService::class)->generateFromOrder($order);
+
+                    Log::info('Order approved, stock reduced and sold units generated', [
                         'order_id' => $order->id,
                         'payment_id' => $paymentId
                     ]);
@@ -739,35 +750,35 @@ class PaymentService
      */
     private function rollbackStockIfNeeded(Order $order, string $reason = 'Rollback automático'): void
     {
-        try {
-            // Buscar movimiento de stock asociado a esta orden
-            $stockMovement = \App\Models\StockMovement::where('voucher_number', 'LIKE', "VENTA-{$order->id}-%")
-                ->where('movement_type', 'salida')
-                ->whereNull('canceled_at')
-                ->first();
+        // Buscar TODOS los movimientos de salida activos asociados a esta orden.
+        // Puede haber más de uno si en algún momento se duplicó el descuento.
+        $stockMovements = \App\Models\StockMovement::where('voucher_number', 'LIKE', "VENTA-{$order->id}-%")
+            ->where('movement_type', 'salida')
+            ->whereNull('canceled_at')
+            ->get();
 
-            if ($stockMovement) {
-                // Revertir el movimiento de stock
-                app(StockMovementService::class)->cancelMovement($stockMovement);
-
-                Log::info('Stock rollback executed', [
-                    'order_id' => $order->id,
-                    'stock_movement_id' => $stockMovement->id,
-                    'reason' => $reason
-                ]);
-            } else {
-                Log::info('No stock movement found to rollback', [
-                    'order_id' => $order->id,
-                    'reason' => $reason
-                ]);
-            }
-        } catch (Exception $e) {
-            Log::error('Error during stock rollback', [
+        if ($stockMovements->isEmpty()) {
+            // No es un error: el pedido nunca tuvo stock descontado (p.ej. anulado en pendiente_pago).
+            Log::info('No stock movement found to rollback', [
                 'order_id' => $order->id,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'reason' => $reason
             ]);
-            // No lanzar excepción para no bloquear el flujo principal
+
+            return;
+        }
+
+        $stockMovementService = app(StockMovementService::class);
+
+        // Las excepciones se propagan a propósito: si el stock no se puede devolver,
+        // la transacción del que invoca debe revertir y NO marcar el pedido como cancelado.
+        foreach ($stockMovements as $stockMovement) {
+            $stockMovementService->cancelMovement($stockMovement);
+
+            Log::info('Stock rollback executed', [
+                'order_id' => $order->id,
+                'stock_movement_id' => $stockMovement->id,
+                'reason' => $reason
+            ]);
         }
     }
 

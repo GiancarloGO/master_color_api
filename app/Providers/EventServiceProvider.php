@@ -3,7 +3,13 @@
 namespace App\Providers;
 
 use App\Events\OrderStatusChanged;
+use App\Events\TicketStatusChanged;
+use App\Events\TicketMessageCreated;
+use App\Events\TicketAssigned;
 use App\Listeners\SendOrderStatusEmail;
+use App\Listeners\NotifyTicketStatusChanged;
+use App\Listeners\NotifyNewTicketMessage;
+use App\Listeners\NotifyTicketAssigned;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 
 class EventServiceProvider extends ServiceProvider
@@ -16,6 +22,15 @@ class EventServiceProvider extends ServiceProvider
     protected $listen = [
         OrderStatusChanged::class => [
             SendOrderStatusEmail::class,
+        ],
+        TicketStatusChanged::class => [
+            NotifyTicketStatusChanged::class,
+        ],
+        TicketMessageCreated::class => [
+            NotifyNewTicketMessage::class,
+        ],
+        TicketAssigned::class => [
+            NotifyTicketAssigned::class,
         ],
     ];
 

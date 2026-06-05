@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\AuditService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class StockMovementService
 {
@@ -241,6 +242,22 @@ class StockMovementService
     public function processOrderStockReduction(Order $order): StockMovement
     {
         return DB::transaction(function () use ($order) {
+            // Idempotencia: si ya existe un movimiento de salida activo para esta orden,
+            // no volver a descontar (MercadoPago reenvía webhooks 'approved' varias veces).
+            $existing = StockMovement::where('voucher_number', 'LIKE', "VENTA-{$order->id}-%")
+                ->where('movement_type', 'salida')
+                ->whereNull('canceled_at')
+                ->first();
+
+            if ($existing) {
+                Log::info('Stock reduction skipped, movement already exists', [
+                    'order_id' => $order->id,
+                    'stock_movement_id' => $existing->id,
+                ]);
+
+                return $existing;
+            }
+
             // Crear movimiento de stock por venta
             $movement = StockMovement::create([
                 'movement_type' => 'salida',

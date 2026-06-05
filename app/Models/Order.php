@@ -78,6 +78,14 @@ class Order extends Model
     }
 
     /**
+     * Get the sold units generated from this order.
+     */
+    public function soldUnits(): HasMany
+    {
+        return $this->hasMany(SoldUnit::class);
+    }
+
+    /**
      * Calculate the total amount of the order.
      */
     public function getTotalAttribute(): float
