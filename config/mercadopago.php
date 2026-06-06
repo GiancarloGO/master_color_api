@@ -16,6 +16,11 @@ return [
     // Configuración del entorno
     'sandbox' => env('MERCADOPAGO_SANDBOX', true),
 
+    // Permite aprobar pagos de forma simulada (sin llamar a MercadoPago) para
+    // clientes marcados como is_test. Doble candado de seguridad: debe estar en
+    // true Y el cliente debe ser de prueba. Mantener en false en producción real.
+    'allow_simulation' => env('MERCADOPAGO_ALLOW_SIMULATION', false),
+
     // URLs de retorno
     'success_url' => env('APP_FRONTEND_URL', 'http://localhost:5173') . '/payment/success',
     'failure_url' => env('APP_FRONTEND_URL', 'http://localhost:5173') . '/payment/failure',

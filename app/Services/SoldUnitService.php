@@ -28,11 +28,14 @@ class SoldUnitService
      *
      * Idempotente: si la orden ya generó unidades, no las duplica.
      *
+     * @param Carbon|null $purchaseDate Fecha de compra a usar (default: hoy).
+     *                                  Útil en backfill de órdenes históricas,
+     *                                  donde debe ser la fecha del pedido.
      * @return SoldUnit[]
      */
-    public function generateFromOrder(Order $order): array
+    public function generateFromOrder(Order $order, ?Carbon $purchaseDate = null): array
     {
-        return DB::transaction(function () use ($order) {
+        return DB::transaction(function () use ($order, $purchaseDate) {
             if ($order->soldUnits()->exists()) {
                 Log::info('Sold units already generated for order', ['order_id' => $order->id]);
 
@@ -40,7 +43,7 @@ class SoldUnitService
             }
 
             $order->loadMissing('orderDetails.product');
-            $purchaseDate = Carbon::today();
+            $purchaseDate = ($purchaseDate ?? Carbon::today())->copy()->startOfDay();
             $created = [];
 
             foreach ($order->orderDetails as $detail) {

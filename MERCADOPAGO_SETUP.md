@@ -77,3 +77,39 @@ php artisan migrate:fresh --seed
 4. El webhook procesará automáticamente el pago
 5. El stock se descontará automáticamente
 6. La orden cambiará a estado "pendiente"
+
+## Modo Simulación (probar sin MercadoPago)
+
+Para probar el flujo completo de pago **sin pasar por el checkout de MercadoPago**
+(útil cuando la app está en producción pero no abierta al público), existe un
+modo simulación con **doble candado de seguridad**:
+
+1. **Flag global** en `.env`:
+   ```bash
+   MERCADOPAGO_ALLOW_SIMULATION=true
+   ```
+   Por defecto es `false`. **Mantener en `false` en producción real.**
+
+2. **Cliente de prueba**: el cliente debe tener `is_test = true`.
+   Se crea con el seeder:
+   ```bash
+   php artisan db:seed --class=TestClientSeeder --force
+   ```
+   - Email: `cliente.test@mastercolor.com`
+   - Password: `cliente1234`
+
+**Cómo funciona:** cuando AMBAS condiciones se cumplen, al llamar
+`POST /api/client/orders/{id}/payment` el pago se aprueba de forma simulada
+reutilizando exactamente la misma lógica del webhook real (cambio de estado de
+la orden, descuento de stock y generación de unidades vendidas). No se realiza
+ninguna llamada a la API de MercadoPago. El `Payment` queda con
+`external_id = SIMULATED-...` para distinguirlo.
+
+Para simular un rechazo (y probar el rollback de stock), enviar en el body:
+```json
+{ "sim_status": "rejected" }
+```
+Valores válidos: `approved` (default), `rejected`, `pending`.
+
+> ⚠️ La simulación solo aplica a clientes `is_test`. Cualquier cliente real
+> sigue yendo a MercadoPago aunque el flag esté activo.

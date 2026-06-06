@@ -71,6 +71,109 @@ class PaymentService
     }
 
     /**
+     * Indica si una orden puede pagarse de forma simulada (sin MercadoPago).
+     * Doble candado: el flag global debe estar activo Y el cliente debe ser de prueba.
+     */
+    public function canSimulatePayment(Order $order): bool
+    {
+        return (bool) config('mercadopago.allow_simulation')
+            && (bool) ($order->client->is_test ?? false);
+    }
+
+    /**
+     * Aprobar (o rechazar) un pago de forma simulada, SIN llamar a la API de
+     * MercadoPago. Reutiliza exactamente la misma lógica que el webhook real
+     * (cambio de estado de orden, descuento de stock y unidades vendidas).
+     *
+     * Solo debe invocarse cuando canSimulatePayment() es verdadero.
+     *
+     * @param string $mpStatus Estado MercadoPago a simular: approved|rejected|pending
+     */
+    public function simulatePayment(Order $order, string $mpStatus = 'approved'): array
+    {
+        if (!$this->canSimulatePayment($order)) {
+            return [
+                'success' => false,
+                'error' => 'Simulación de pago no permitida para esta orden',
+            ];
+        }
+
+        $allowed = ['approved', 'rejected', 'pending'];
+        if (!in_array($mpStatus, $allowed, true)) {
+            return [
+                'success' => false,
+                'error' => 'Estado simulado inválido. Use: ' . implode(', ', $allowed),
+            ];
+        }
+
+        try {
+            return DB::transaction(function () use ($order, $mpStatus) {
+                $simulatedId = 'SIMULATED-' . $order->id . '-' . time();
+
+                $fakeMpResponse = [
+                    'id' => $simulatedId,
+                    'status' => $mpStatus,
+                    'external_reference' => (string) $order->id,
+                    'simulated' => true,
+                    'simulated_at' => now()->toIso8601String(),
+                ];
+
+                // Crear o actualizar el registro de pago, igual que haría el flujo real.
+                $payment = Payment::updateOrCreate(
+                    [
+                        'order_id' => $order->id,
+                        'payment_method' => 'MercadoPago',
+                    ],
+                    [
+                        'amount' => $order->total,
+                        'currency' => 'PEN',
+                        'status' => $this->mapMercadoPagoStatus($mpStatus),
+                        'external_id' => $simulatedId,
+                        'payment_code' => $simulatedId,
+                        'external_response' => $fakeMpResponse,
+                    ]
+                );
+
+                // Misma transición de estado que el webhook real: descuenta stock,
+                // genera unidades vendidas, etc.
+                $this->updateOrderStatus($order, $mpStatus, $simulatedId);
+
+                $this->audit->logSystemAction('payment.simulated', 'Payment', $payment->id, [
+                    'order_id' => $order->id,
+                    'simulated_status' => $mpStatus,
+                    'new_status' => $payment->status,
+                    'amount' => $payment->amount,
+                ]);
+
+                Log::warning('Pago SIMULADO procesado (sin MercadoPago)', [
+                    'order_id' => $order->id,
+                    'payment_id' => $payment->id,
+                    'simulated_status' => $mpStatus,
+                ]);
+
+                return [
+                    'success' => true,
+                    'simulated' => true,
+                    'order_id' => $order->id,
+                    'payment_id' => $payment->id,
+                    'simulated_status' => $mpStatus,
+                    'order_status' => $order->fresh()->status,
+                ];
+            });
+        } catch (Exception $e) {
+            Log::error('Error simulando pago: ' . $e->getMessage(), [
+                'order_id' => $order->id,
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+            ];
+        }
+    }
+
+    /**
      * Procesar notificación de webhook de MercadoPago
      */
     public function processWebhookNotification(array $data): bool

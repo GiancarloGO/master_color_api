@@ -432,6 +432,26 @@ class ClientOrderController extends Controller
             }
 
             $paymentService = app(PaymentService::class);
+
+            // Cliente de prueba + flag activo: aprobar el pago de forma simulada,
+            // sin pasar por el checkout de MercadoPago.
+            if ($paymentService->canSimulatePayment($order)) {
+                $simStatus = request('sim_status', 'approved');
+                $simResult = $paymentService->simulatePayment($order, $simStatus);
+
+                if (!$simResult['success']) {
+                    return ApiResponseClass::errorResponse('Error al simular el pago: ' . $simResult['error'], 422);
+                }
+
+                return ApiResponseClass::sendResponse([
+                    'simulated' => true,
+                    'order_id' => $simResult['order_id'],
+                    'order_status' => $simResult['order_status'],
+                    'payment_status' => $simResult['simulated_status'],
+                    'total_amount' => $order->total,
+                ], 'Pago simulado procesado (cliente de prueba)', 200);
+            }
+
             $result = $paymentService->createPaymentPreference($order);
 
             if (!$result['success']) {

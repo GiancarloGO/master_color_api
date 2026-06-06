@@ -23,7 +23,8 @@ class Client extends Authenticatable implements JWTSubject
         'token_version',
         'phone',
         'verification_token',
-        'email_verified_at'
+        'email_verified_at',
+        'is_test'
     ];
 
     protected $hidden = [
@@ -35,6 +36,7 @@ class Client extends Authenticatable implements JWTSubject
         'identity_document' => 'string',
         'token_version' => 'string',
         'is_active' => 'boolean',
+        'is_test' => 'boolean',
         'email_verified_at' => 'datetime',
     ];
 
