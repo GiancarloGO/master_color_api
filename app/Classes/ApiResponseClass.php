@@ -48,6 +48,26 @@ class ApiResponseClass
         ], $code);
     }
 
+    public static function sendPaginatedResponse($result, $paginator, $message = '', $code = 200)
+    {
+        // Envelope estándar con metadatos de paginación (estilo Laravel).
+        // $result es la Resource::collection($paginator); $paginator es el
+        // LengthAwarePaginator del que se extrae el meta.
+        return response()->json([
+            'success' => true,
+            'message' => $message,
+            'status' => $code,
+            'data' => $result,
+            'pagination' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ],
+            'errors' => null
+        ], $code);
+    }
+
     public static function errorResponse($message, $code = 500, $errors = null)
     {
         // Estandariza la respuesta de error

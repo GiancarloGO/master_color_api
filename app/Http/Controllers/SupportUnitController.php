@@ -37,8 +37,9 @@ class SupportUnitController extends Controller
             $units = $query->orderByDesc('created_at')
                 ->paginate($request->input('per_page', 15));
 
-            return ApiResponseClass::sendResponse(
+            return ApiResponseClass::sendPaginatedResponse(
                 SoldUnitResource::collection($units),
+                $units,
                 'Unidades vendidas',
                 200
             );

@@ -43,8 +43,9 @@ class ClientSoldUnitController extends Controller
             $units = $query->orderByDesc('purchase_date')
                 ->paginate($request->input('per_page', 15));
 
-            return ApiResponseClass::sendResponse(
+            return ApiResponseClass::sendPaginatedResponse(
                 SoldUnitResource::collection($units),
+                $units,
                 'Mis unidades',
                 200
             );

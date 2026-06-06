@@ -26,6 +26,8 @@ use App\Http\Controllers\SupportTicketController;
 use App\Http\Controllers\ClientDeviceController;
 use App\Http\Controllers\SupportDeviceController;
 use App\Http\Controllers\SupportMetricsController;
+use App\Http\Controllers\SupportTechnicianController;
+use App\Http\Controllers\ClientProductController;
 
 /*
 |--------------------------------------------------------------------------
@@ -52,6 +54,7 @@ Route::prefix('auth')->group(function () {
         Route::post('/logout', [AuthController::class, 'logout'])->name('auth.logout');
         Route::post('/refresh', [AuthController::class, 'refresh'])->name('auth.refresh');
         Route::post('/me', [AuthController::class, 'me'])->name('auth.me');
+        Route::get('/me', [AuthController::class, 'me'])->name('auth.me.get');
         Route::post('/change-password', [AuthController::class, 'changePassword'])->name('auth.change-password');
     });
 });
@@ -74,6 +77,7 @@ Route::prefix('client/auth')->group(function () {
     Route::middleware([\App\Http\Middleware\ClientAuth::class])->group(function () {
         Route::get('/profile', [ClientAuthController::class, 'profile'])->name('client.profile');
         Route::post('/me', [ClientAuthController::class, 'me'])->name('client.me');
+        Route::get('/me', [ClientAuthController::class, 'me'])->name('client.me.get');
         Route::put('/profile', [ClientAuthController::class, 'updateProfile'])->name('client.profile.update');
         Route::post('/change-password', [ClientAuthController::class, 'changePassword'])->name('client.password.change');
         Route::post('/refresh', [ClientAuthController::class, 'refresh'])->name('client.auth.refresh');
@@ -125,6 +129,16 @@ Route::prefix('client/cart')->middleware([\App\Http\Middleware\ClientAuth::class
     Route::put('/update/{productId}', [ClientCartController::class, 'updateQuantity'])->name('client.cart.update');
     Route::delete('/remove/{productId}', [ClientCartController::class, 'removeFromCart'])->name('client.cart.remove');
     Route::delete('/clear', [ClientCartController::class, 'clearCart'])->name('client.cart.clear');
+});
+
+/*
+|--------------------------------------------------------------------------
+| CLIENT PRODUCT CATALOG ROUTES
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('client/products')->middleware([\App\Http\Middleware\ClientAuth::class])->group(function () {
+    Route::get('/', [ClientProductController::class, 'index'])->name('client.products.index');
 });
 
 /*
@@ -322,6 +336,16 @@ Route::middleware(['jwt.auth', 'check.token.version'])->group(function () {
 
 /*
 |--------------------------------------------------------------------------
+| SUPPORT — TECHNICIANS (STAFF)
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(['jwt.auth', 'check.token.version'])->group(function () {
+    Route::get('support/technicians', [SupportTechnicianController::class, 'index'])->name('support.technicians');
+});
+
+/*
+|--------------------------------------------------------------------------
 | SUPPORT — TICKETS (CLIENT)
 |--------------------------------------------------------------------------
 */
@@ -349,6 +373,7 @@ Route::prefix('support/tickets')->middleware(['jwt.auth', 'check.token.version']
     Route::patch('/{id}/assign', [SupportTicketController::class, 'assign'])->whereNumber('id')->name('support.tickets.assign');
     Route::patch('/{id}/status', [SupportTicketController::class, 'status'])->whereNumber('id')->name('support.tickets.status');
     Route::post('/{id}/messages', [SupportTicketController::class, 'messages'])->whereNumber('id')->name('support.tickets.messages');
+    Route::post('/{id}/attachments', [SupportTicketController::class, 'attachments'])->whereNumber('id')->name('support.tickets.attachments');
     Route::post('/{id}/diagnosis', [SupportTicketController::class, 'diagnosis'])->whereNumber('id')->name('support.tickets.diagnosis');
 });
 

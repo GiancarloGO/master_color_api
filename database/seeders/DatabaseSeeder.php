@@ -31,6 +31,11 @@ class DatabaseSeeder extends Seeder
             'description' => 'Gestión de inventario y stock',
         ]);
 
+        $technicianRole = Role::create([
+            'name' => 'Tecnico',
+            'description' => 'Técnico de soporte asignable a tickets',
+        ]);
+
         // Create default admin user compatible with Postman collection
         User::create([
             'name' => 'Admin Master',

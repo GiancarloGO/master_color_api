@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Classes\ApiResponseClass;
 use App\Http\Resources\SupportTicketResource;
 use App\Http\Resources\TicketMessageResource;
+use App\Http\Resources\TicketAttachmentResource;
 use App\Models\SupportTicket;
 use App\Models\User;
 use App\Services\SupportTicketService;
@@ -40,8 +41,9 @@ class SupportTicketController extends Controller
             $tickets = $query->orderByDesc('created_at')
                 ->paginate($request->input('per_page', 15));
 
-            return ApiResponseClass::sendResponse(
+            return ApiResponseClass::sendPaginatedResponse(
                 SupportTicketResource::collection($tickets),
+                $tickets,
                 'Tickets de soporte',
                 200
             );
@@ -63,8 +65,9 @@ class SupportTicketController extends Controller
             $tickets = $query->orderByDesc('created_at')
                 ->paginate($request->input('per_page', 15));
 
-            return ApiResponseClass::sendResponse(
+            return ApiResponseClass::sendPaginatedResponse(
                 SupportTicketResource::collection($tickets),
+                $tickets,
                 'Mis tickets asignados',
                 200
             );
@@ -187,6 +190,40 @@ class SupportTicketController extends Controller
             );
         } catch (\Exception $e) {
             return ApiResponseClass::errorResponse('Error al agregar mensaje', 500, [$e->getMessage()]);
+        }
+    }
+
+    public function attachments(Request $request, string $id)
+    {
+        try {
+            $ticket = SupportTicket::find($id);
+            if (!$ticket) {
+                return ApiResponseClass::errorResponse('Ticket no encontrado', 404);
+            }
+
+            $validator = Validator::make($request->all(), [
+                'files' => 'required|array|min:1|max:5',
+                'files.*' => 'file|mimes:jpg,jpeg,png,webp|max:5120',
+                'message_id' => 'nullable|integer|exists:ticket_messages,id',
+            ]);
+            if ($validator->fails()) {
+                return ApiResponseClass::errorResponse('Error de validación', 422, $validator->errors());
+            }
+
+            $attachments = $this->tickets->addAttachments(
+                $ticket,
+                $request->file('files'),
+                Auth::user(),
+                $request->input('message_id')
+            );
+
+            return ApiResponseClass::sendResponse(
+                TicketAttachmentResource::collection(collect($attachments)),
+                'Adjuntos cargados',
+                201
+            );
+        } catch (\Exception $e) {
+            return ApiResponseClass::errorResponse('Error al cargar adjuntos', 500, [$e->getMessage()]);
         }
     }
 

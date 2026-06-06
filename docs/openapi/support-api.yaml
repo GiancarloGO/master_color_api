@@ -11,7 +11,7 @@ info:
     Todas las respuestas usan el envelope estándar del backend:
     `{ success, message, status, data, errors }`.
 
-    Estado: borrador de diseño (Sprint 0). Aún no implementado en el backend.
+    Estado: implementado en el backend.
   contact:
     name: Equipo MasterColor
 
@@ -28,8 +28,14 @@ tags:
     description: Tickets de soporte creados y seguidos por el cliente.
   - name: Cliente · Dispositivos
     description: Registro de tokens push (FCM) del cliente.
+  - name: Cliente · Productos
+    description: Catálogo de productos para el registro manual de unidades.
+  - name: Sesión
+    description: Datos del usuario autenticado (staff y cliente).
   - name: Staff · Tickets
     description: Gestión y atención de tickets por técnicos/staff.
+  - name: Staff · Usuarios
+    description: Listado de técnicos asignables.
   - name: Staff · Unidades
     description: Consulta de unidades vendidas por el staff.
   - name: Staff · Métricas
@@ -41,6 +47,49 @@ security:
   - clientAuth: []
 
 paths:
+  # ──────────────────────────────────── SESIÓN ─────────────────────────────────
+  /auth/me:
+    get:
+      tags: [Sesión]
+      summary: Usuario staff autenticado
+      security: [{ staffAuth: [] }]
+      responses:
+        '200':
+          description: Datos del usuario staff en sesión.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          user: { $ref: '#/components/schemas/StaffUser' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /client/auth/me:
+    get:
+      tags: [Sesión]
+      summary: Cliente autenticado
+      security: [{ clientAuth: [] }]
+      responses:
+        '200':
+          description: Datos del cliente en sesión.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          user: { $ref: '#/components/schemas/ClientUser' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   # ───────────────────────────── CLIENTE · UNIDADES ─────────────────────────────
   /client/units:
     get:
@@ -71,6 +120,7 @@ paths:
                       data:
                         type: array
                         items: { $ref: '#/components/schemas/SoldUnit' }
+                      pagination: { $ref: '#/components/schemas/Pagination' }
         '401': { $ref: '#/components/responses/Unauthorized' }
     post:
       tags: [Cliente · Unidades]
@@ -165,6 +215,7 @@ paths:
                       data:
                         type: array
                         items: { $ref: '#/components/schemas/SupportTicket' }
+                      pagination: { $ref: '#/components/schemas/Pagination' }
         '401': { $ref: '#/components/responses/Unauthorized' }
     post:
       tags: [Cliente · Tickets]
@@ -380,6 +431,36 @@ paths:
               schema: { $ref: '#/components/schemas/ApiSuccess' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
+  # ───────────────────────────── CLIENTE · PRODUCTOS ───────────────────────────
+  /client/products:
+    get:
+      tags: [Cliente · Productos]
+      summary: Catálogo de productos (para registro manual de unidad)
+      description: Búsqueda paginada de productos para seleccionar al registrar una unidad.
+      security: [{ clientAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - name: search
+          in: query
+          description: Busca por nombre o SKU.
+          schema: { type: string }
+      responses:
+        '200':
+          description: Lista paginada de productos.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/ClientProduct' }
+                      pagination: { $ref: '#/components/schemas/Pagination' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   # ────────────────────────────── STAFF · TICKETS ──────────────────────────────
   /support/tickets:
     get:
@@ -421,6 +502,7 @@ paths:
                       data:
                         type: array
                         items: { $ref: '#/components/schemas/SupportTicket' }
+                      pagination: { $ref: '#/components/schemas/Pagination' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
@@ -446,6 +528,7 @@ paths:
                       data:
                         type: array
                         items: { $ref: '#/components/schemas/SupportTicket' }
+                      pagination: { $ref: '#/components/schemas/Pagination' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
@@ -577,6 +660,46 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/ValidationError' }
 
+  /support/tickets/{id}/attachments:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [Staff · Tickets]
+      summary: Adjuntar evidencia al ticket (foto de diagnóstico, etc.)
+      security: [{ staffAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [files]
+              properties:
+                files:
+                  type: array
+                  items: { type: string, format: binary }
+                  description: Imágenes (jpg/jpeg/png/webp, máx 5MB c/u, máx 5 por petición).
+                message_id:
+                  type: integer
+                  description: Adjuntar a un mensaje específico (opcional).
+      responses:
+        '201':
+          description: Adjuntos cargados.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/TicketAttachment' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
   /support/tickets/{id}/diagnosis:
     parameters:
       - $ref: '#/components/parameters/IdPath'
@@ -636,6 +759,7 @@ paths:
                       data:
                         type: array
                         items: { $ref: '#/components/schemas/SoldUnit' }
+                      pagination: { $ref: '#/components/schemas/Pagination' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
@@ -689,6 +813,37 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/ValidationError' }
 
+  # ────────────────────────────── STAFF · USUARIOS ─────────────────────────────
+  /support/technicians:
+    get:
+      tags: [Staff · Usuarios]
+      summary: Listar técnicos asignables
+      description: Usuarios con rol `Tecnico` activos, para asignar en `PATCH /support/tickets/{id}/assign`.
+      security: [{ staffAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - name: search
+          in: query
+          description: Busca por nombre o email.
+          schema: { type: string }
+      responses:
+        '200':
+          description: Lista paginada de técnicos.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Technician' }
+                      pagination: { $ref: '#/components/schemas/Pagination' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
   # ────────────────────────────── STAFF · MÉTRICAS ─────────────────────────────
   /support/metrics:
     get:
@@ -735,6 +890,23 @@ paths:
               schema: { $ref: '#/components/schemas/ApiSuccess' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '422': { $ref: '#/components/responses/ValidationError' }
+  /support/devices/{token}:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema: { type: string }
+    delete:
+      tags: [Staff · Dispositivos]
+      summary: Eliminar token push del staff (logout/desinstalación)
+      security: [{ staffAuth: [] }]
+      responses:
+        '200':
+          description: Token eliminado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiSuccess' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
 
 components:
   securitySchemes:
@@ -838,6 +1010,48 @@ components:
         last_page: { type: integer }
         per_page: { type: integer }
         total: { type: integer }
+
+    # ── Sesión / Usuarios ──
+    StaffUser:
+      type: object
+      description: Usuario staff/técnico autenticado.
+      properties:
+        id: { type: integer, example: 7 }
+        name: { type: string, example: 'Carlos Pérez' }
+        email: { type: string, format: email, example: 'carlos@mastercolor.com' }
+        role:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer, example: 4 }
+            name: { type: string, example: 'Tecnico' }
+        role_name: { type: string, nullable: true, example: 'Tecnico' }
+        is_active: { type: boolean, example: true }
+        phone: { type: string, nullable: true }
+        dni: { type: string, nullable: true }
+    ClientUser:
+      type: object
+      description: Cliente final autenticado.
+      properties:
+        id: { type: integer, example: 33 }
+        name: { type: string, example: 'Ana Gómez' }
+        email: { type: string, format: email, example: 'ana@example.com' }
+    Technician:
+      type: object
+      description: Técnico asignable a un ticket.
+      properties:
+        id: { type: integer, example: 7 }
+        name: { type: string, example: 'Carlos Pérez' }
+        email: { type: string, format: email, example: 'carlos@mastercolor.com' }
+        active: { type: boolean, example: true }
+    ClientProduct:
+      type: object
+      description: Producto del catálogo (vista ligera para registro de unidad).
+      properties:
+        id: { type: integer, example: 88 }
+        name: { type: string, example: 'Toner Konica Minolta C458' }
+        sku: { type: string, nullable: true, example: 'TN-C458-K' }
+        warranty_months: { type: integer, nullable: true, example: 12 }
 
     # ── Enums ──
     SoldUnitStatus:

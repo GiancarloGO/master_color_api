@@ -34,8 +34,9 @@ class ClientSupportTicketController extends Controller
             $tickets = $query->orderByDesc('created_at')
                 ->paginate($request->input('per_page', 15));
 
-            return ApiResponseClass::sendResponse(
+            return ApiResponseClass::sendPaginatedResponse(
                 SupportTicketResource::collection($tickets),
+                $tickets,
                 'Mis tickets de soporte',
                 200
             );
