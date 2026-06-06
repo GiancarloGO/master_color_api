@@ -25,6 +25,7 @@ class ProductResource extends JsonResource
             'presentation' => $this->presentation,
             'category' => $this->category,
             'unidad' => $this->unidad,
+            'default_warranty_months' => (int) $this->default_warranty_months,
             'user_id' => $this->user_id,
             'user_name' => optional($this->user)->name,
             'stock_id' => optional($this->stock)->id,

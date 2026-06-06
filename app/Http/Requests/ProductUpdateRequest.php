@@ -34,6 +34,8 @@ class ProductUpdateRequest extends FormRequest
                 'presentation' => 'required|string|max:255',
                 'category' => 'required|string|max:255',
                 'unidad' => 'required|string|max:255',
+                // Meses de garantía por defecto (se copia a cada unidad vendida). 0 = sin garantía.
+                'default_warranty_months' => 'nullable|integer|min:0|max:120',
                 // Stock fields (quantity excluded - only editable at creation)
                 'min_stock' => 'nullable|integer|min:0',
                 'max_stock' => 'nullable|integer|min:0',
@@ -68,7 +70,12 @@ class ProductUpdateRequest extends FormRequest
             'category.string' => 'La categoría debe ser un texto válido.',
             'unidad.required' => 'La unidad es obligatoria.',
             'unidad.string' => 'La unidad debe ser un texto válido.',
-            
+
+            // Mensajes para garantía
+            'default_warranty_months.integer' => 'Los meses de garantía deben ser un número entero.',
+            'default_warranty_months.min' => 'Los meses de garantía no pueden ser negativos.',
+            'default_warranty_months.max' => 'Los meses de garantía no pueden exceder 120.',
+
             // Mensajes para stock fields
             'min_stock.integer' => 'El stock mínimo debe ser un número entero.',
             'min_stock.min' => 'El stock mínimo no puede ser negativo.',
