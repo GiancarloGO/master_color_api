@@ -31,6 +31,8 @@ class UpdateAddressRequest extends FormRequest
             'postal_code' => 'sometimes|string|max:20',
             'reference' => 'nullable|string|max:255',
             'is_main' => 'boolean',
+            'latitude' => 'nullable|numeric|between:-90,90',
+            'longitude' => 'nullable|numeric|between:-180,180',
         ];
     }
 
@@ -61,6 +63,11 @@ class UpdateAddressRequest extends FormRequest
             'reference.max' => 'La referencia no puede tener más de 255 caracteres.',
             
             'is_main.boolean' => 'El campo dirección principal debe ser verdadero o falso.',
+
+            'latitude.numeric' => 'La latitud debe ser un número válido.',
+            'latitude.between' => 'La latitud debe estar entre -90 y 90.',
+            'longitude.numeric' => 'La longitud debe ser un número válido.',
+            'longitude.between' => 'La longitud debe estar entre -180 y 180.',
         ];
     }
 }

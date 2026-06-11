@@ -24,6 +24,12 @@ class UserStoreRequest extends FormRequest
             'dni' => 'required|string|unique:users|regex:/^\\d{8}$/',
             'phone' => 'nullable|string',
             'is_active' => 'nullable|boolean',
+            // Perfil del técnico (asignación inteligente de visitas).
+            'specialties' => 'nullable|array',
+            'specialties.*' => 'string|in:garantia,instalacion,falla,consulta,otro',
+            'coverage_zones' => 'nullable|array',
+            'coverage_zones.*' => 'string|max:100',
+            'is_available' => 'sometimes|boolean',
         ];
     }
 

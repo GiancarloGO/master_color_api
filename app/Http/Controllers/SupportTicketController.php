@@ -9,6 +9,7 @@ use App\Http\Resources\TicketAttachmentResource;
 use App\Models\SupportTicket;
 use App\Models\User;
 use App\Services\SupportTicketService;
+use App\Services\TicketQuoteService;
 use DomainException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -16,12 +17,15 @@ use Illuminate\Support\Facades\Validator;
 
 class SupportTicketController extends Controller
 {
-    public function __construct(private SupportTicketService $tickets) {}
+    public function __construct(
+        private SupportTicketService $tickets,
+        private TicketQuoteService $quotes,
+    ) {}
 
     public function index(Request $request)
     {
         try {
-            $query = SupportTicket::with(['assignedUser', 'client']);
+            $query = SupportTicket::with(['assignedUser', 'client', 'serviceAddress']);
 
             foreach (['status', 'priority', 'category', 'assigned_user_id', 'client_id'] as $field) {
                 if ($request->filled($field)) {
@@ -55,7 +59,7 @@ class SupportTicketController extends Controller
     public function mine(Request $request)
     {
         try {
-            $query = SupportTicket::with(['client'])
+            $query = SupportTicket::with(['client', 'serviceAddress'])
                 ->where('assigned_user_id', Auth::id());
 
             if ($request->filled('status')) {
@@ -82,7 +86,11 @@ class SupportTicketController extends Controller
             $ticket = SupportTicket::with([
                 'assignedUser',
                 'client',
+                'serviceAddress',
                 'soldUnit.product',
+                'parts.stock.product',
+                'visits.technician',
+                'latestQuote',
                 'messages' => fn ($q) => $q->with('attachments')->orderBy('created_at'),
                 'attachments',
                 'statusHistory' => fn ($q) => $q->orderBy('created_at'),
@@ -125,6 +133,8 @@ class SupportTicketController extends Controller
                 'Ticket asignado',
                 200
             );
+        } catch (DomainException $e) {
+            return ApiResponseClass::errorResponse($e->getMessage(), 409);
         } catch (\Exception $e) {
             return ApiResponseClass::errorResponse('Error al asignar ticket', 500, [$e->getMessage()]);
         }
@@ -139,7 +149,7 @@ class SupportTicketController extends Controller
             }
 
             $validator = Validator::make($request->all(), [
-                'status' => 'required|in:abierto,asignado,en_proceso,en_espera_cliente,resuelto,cerrado,cancelado',
+                'status' => 'required|in:abierto,asignado,en_proceso,en_espera_cliente,en_espera_aprobacion,resuelto,cerrado,cancelado',
                 'note' => 'nullable|string',
             ]);
             if ($validator->fails()) {
@@ -251,8 +261,144 @@ class SupportTicketController extends Controller
                 'Diagnóstico registrado',
                 200
             );
+        } catch (DomainException $e) {
+            return ApiResponseClass::errorResponse($e->getMessage(), 409);
         } catch (\Exception $e) {
             return ApiResponseClass::errorResponse('Error al registrar diagnóstico', 500, [$e->getMessage()]);
+        }
+    }
+
+    /**
+     * Programar (o reprogramar) la visita del ticket.
+     */
+    public function schedule(Request $request, string $id)
+    {
+        try {
+            $ticket = SupportTicket::find($id);
+            if (!$ticket) {
+                return ApiResponseClass::errorResponse('Ticket no encontrado', 404);
+            }
+
+            $validator = Validator::make($request->all(), [
+                'scheduled_at' => 'required|date',
+                'scheduled_window_minutes' => 'nullable|integer|min:0|max:1440',
+                'note' => 'nullable|string',
+            ]);
+            if ($validator->fails()) {
+                return ApiResponseClass::errorResponse('Error de validación', 422, $validator->errors());
+            }
+
+            $ticket = $this->tickets->schedule($ticket, $validator->validated(), Auth::user());
+
+            return ApiResponseClass::sendResponse(
+                new SupportTicketResource($ticket),
+                'Visita programada',
+                200
+            );
+        } catch (DomainException $e) {
+            return ApiResponseClass::errorResponse($e->getMessage(), 409);
+        } catch (\Exception $e) {
+            return ApiResponseClass::errorResponse('Error al programar visita', 500, [$e->getMessage()]);
+        }
+    }
+
+    /**
+     * Tickets con SLA vencido o por vencer (para escalamiento).
+     * filter: breached | due_soon | all (default: all = vencidos + por vencer).
+     */
+    public function sla(Request $request)
+    {
+        try {
+            $filter = $request->input('filter', 'all');
+            $soonLimit = now()->addHours(SupportTicket::SLA_DUE_SOON_HOURS);
+
+            $query = SupportTicket::with(['assignedUser', 'client', 'serviceAddress'])
+                ->openForSla();
+
+            $query->where(function ($q) use ($filter, $soonLimit) {
+                if ($filter === 'breached') {
+                    $q->where('sla_due_at', '<', now());
+                } elseif ($filter === 'due_soon') {
+                    $q->whereBetween('sla_due_at', [now(), $soonLimit]);
+                } else {
+                    // Vencidos + por vencer (todo lo que requiere atención).
+                    $q->where('sla_due_at', '<=', $soonLimit);
+                }
+            });
+
+            $tickets = $query->orderBy('sla_due_at')
+                ->paginate($request->input('per_page', 15));
+
+            return ApiResponseClass::sendPaginatedResponse(
+                SupportTicketResource::collection($tickets),
+                $tickets,
+                'Tickets por SLA',
+                200
+            );
+        } catch (\Exception $e) {
+            return ApiResponseClass::errorResponse('Error al obtener tickets por SLA', 500, [$e->getMessage()]);
+        }
+    }
+
+    /**
+     * Agenda del técnico autenticado para una fecha (default: hoy).
+     */
+    public function agenda(Request $request)
+    {
+        try {
+            $date = $request->filled('date')
+                ? \Illuminate\Support\Carbon::parse($request->input('date'))
+                : \Illuminate\Support\Carbon::today();
+
+            $tickets = SupportTicket::with(['client', 'serviceAddress'])
+                ->where('assigned_user_id', Auth::id())
+                ->whereNotNull('scheduled_at')
+                ->whereDate('scheduled_at', $date->toDateString())
+                ->orderBy('scheduled_at')
+                ->get();
+
+            return ApiResponseClass::sendResponse(
+                SupportTicketResource::collection($tickets),
+                'Agenda del ' . $date->toDateString(),
+                200
+            );
+        } catch (\Exception $e) {
+            return ApiResponseClass::errorResponse('Error al obtener la agenda', 500, [$e->getMessage()]);
+        }
+    }
+
+    /**
+     * Crear una cotización/presupuesto para el ticket (staff).
+     */
+    public function quote(Request $request, string $id)
+    {
+        try {
+            $ticket = SupportTicket::find($id);
+            if (!$ticket) {
+                return ApiResponseClass::errorResponse('Ticket no encontrado', 404);
+            }
+
+            $validator = Validator::make($request->all(), [
+                'labor_cost' => 'required|numeric|min:0|max:99999999.99',
+                'parts_cost' => 'nullable|numeric|min:0|max:99999999.99',
+                'currency' => 'nullable|string|size:3',
+                'note' => 'nullable|string',
+            ]);
+            if ($validator->fails()) {
+                return ApiResponseClass::errorResponse('Error de validación', 422, $validator->errors());
+            }
+
+            $this->quotes->createQuote($ticket, $validator->validated(), Auth::user());
+
+            return ApiResponseClass::sendResponse(
+                new SupportTicketResource($ticket->fresh()->load('latestQuote')),
+                'Presupuesto creado',
+                201
+            );
+        } catch (DomainException $e) {
+            return ApiResponseClass::errorResponse($e->getMessage(), 409);
+        } catch (\Exception $e) {
+            return ApiResponseClass::errorResponse('Error al crear presupuesto', 500, [$e->getMessage()]);
         }
     }
 }

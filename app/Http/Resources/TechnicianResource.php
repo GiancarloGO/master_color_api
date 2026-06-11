@@ -18,7 +18,11 @@ class TechnicianResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'email' => $this->email,
+            'phone' => $this->phone,
             'active' => (bool) $this->is_active,
+            'is_available' => (bool) $this->is_available,
+            'specialties' => $this->specialties ?? [],
+            'coverage_zones' => $this->coverage_zones ?? [],
         ];
     }
 }

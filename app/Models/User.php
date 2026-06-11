@@ -30,6 +30,9 @@ class User extends Authenticatable implements JWTSubject
         'dni',
         'phone',
         'is_active',
+        'specialties',
+        'coverage_zones',
+        'is_available',
     ];
 
     /**
@@ -62,6 +65,9 @@ class User extends Authenticatable implements JWTSubject
             'dni' => 'string',
             'phone' => 'string',
             'is_active' => 'boolean',
+            'specialties' => 'array',
+            'coverage_zones' => 'array',
+            'is_available' => 'boolean',
         ];
     }
     public function getJWTIdentifier()

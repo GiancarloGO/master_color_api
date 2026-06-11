@@ -19,6 +19,8 @@ class ClientProductResource extends JsonResource
             'name' => $this->name,
             'sku' => $this->sku,
             'warranty_months' => $this->default_warranty_months,
+            // URL absoluta de la imagen (accessor → S3); null si no tiene.
+            'image_url' => $this->image_url,
         ];
     }
 }
