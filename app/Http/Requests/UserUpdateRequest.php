@@ -24,6 +24,12 @@ class UserUpdateRequest extends FormRequest
             'dni' => 'sometimes|required|string|regex:/^\\d{8}$/',
             'phone' => 'nullable|string',
             'is_active' => 'nullable|boolean',
+            // Perfil del técnico (asignación inteligente de visitas).
+            'specialties' => 'sometimes|nullable|array',
+            'specialties.*' => 'string|in:garantia,instalacion,falla,consulta,otro',
+            'coverage_zones' => 'sometimes|nullable|array',
+            'coverage_zones.*' => 'string|max:100',
+            'is_available' => 'sometimes|boolean',
         ];
     }
 

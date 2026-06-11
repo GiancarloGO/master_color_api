@@ -27,8 +27,9 @@ class SupportTicketService
     private const TRANSITIONS = [
         'abierto' => ['asignado', 'en_proceso', 'cancelado'],
         'asignado' => ['en_proceso', 'cancelado'],
-        'en_proceso' => ['en_espera_cliente', 'resuelto', 'cancelado'],
+        'en_proceso' => ['en_espera_cliente', 'en_espera_aprobacion', 'resuelto', 'cancelado'],
         'en_espera_cliente' => ['en_proceso', 'cancelado'],
+        'en_espera_aprobacion' => ['en_proceso', 'cancelado'],
         'resuelto' => ['cerrado', 'en_proceso'],
         'cerrado' => ['en_proceso'],
         'cancelado' => [],
@@ -77,6 +78,8 @@ class SupportTicketService
                 'description' => $data['description'],
                 'status' => 'abierto',
                 'channel' => $data['channel'] ?? 'app',
+                'service_type' => $data['service_type'] ?? 'remoto',
+                'service_address_id' => $data['service_address_id'] ?? null,
                 'is_warranty_covered' => $unit ? (bool) $unit->warranty_active : null,
                 'sla_due_at' => now()->addHours(self::SLA_HOURS[$priority] ?? 24),
             ]);
@@ -164,6 +167,15 @@ class SupportTicketService
      */
     public function assign(SupportTicket $ticket, User $assignee, User $actor): SupportTicket
     {
+        // No se puede operar sobre tickets en estado terminal.
+        $this->assertNotTerminal($ticket, 'asignar');
+
+        // Solo se asignan tickets a técnicos activos.
+        $assignee->loadMissing('role');
+        if ($assignee->role?->name !== 'Tecnico' || !$assignee->is_active) {
+            throw new DomainException('El usuario asignado debe ser un técnico activo');
+        }
+
         $statusChanged = false;
 
         $fresh = DB::transaction(function () use ($ticket, $assignee, $actor, &$statusChanged) {
@@ -222,10 +234,34 @@ class SupportTicketService
     }
 
     /**
+     * Programar (o reprogramar) la visita del ticket.
+     */
+    public function schedule(SupportTicket $ticket, array $data, User $actor): SupportTicket
+    {
+        $this->assertNotTerminal($ticket, 'programar');
+
+        $ticket->update([
+            'scheduled_at' => $data['scheduled_at'],
+            'scheduled_window_minutes' => $data['scheduled_window_minutes'] ?? null,
+        ]);
+
+        $this->audit->logStaffAction($actor, 'support_ticket.scheduled', 'SupportTicket', $ticket->id, null, [
+            'scheduled_at' => $ticket->scheduled_at?->toIso8601String(),
+            'window_minutes' => $ticket->scheduled_window_minutes,
+            'note' => $data['note'] ?? null,
+        ]);
+
+        return $ticket->fresh();
+    }
+
+    /**
      * Registrar diagnóstico técnico y, opcionalmente, resolver el ticket.
      */
     public function registerDiagnosis(SupportTicket $ticket, array $data, User $actor): SupportTicket
     {
+        // No se diagnostica un ticket en estado terminal (cerrado/cancelado).
+        $this->assertNotTerminal($ticket, 'diagnosticar');
+
         $resolved = false;
         $from = $ticket->status;
 
@@ -302,6 +338,29 @@ class SupportTicketService
         TicketStatusChanged::dispatch($ticket->id, $from, 'en_proceso', 'client');
 
         return $fresh;
+    }
+
+    /**
+     * Estados terminales sobre los que no se permite operar (asignar/diagnosticar).
+     */
+    private const TERMINAL_STATUSES = ['cerrado', 'cancelado'];
+
+    /**
+     * ¿El ticket está en un estado terminal (no admite más operaciones)?
+     */
+    public static function isTerminal(string $status): bool
+    {
+        return in_array($status, self::TERMINAL_STATUSES, true);
+    }
+
+    /**
+     * @throws DomainException si el ticket está en un estado terminal.
+     */
+    private function assertNotTerminal(SupportTicket $ticket, string $action): void
+    {
+        if (self::isTerminal($ticket->status)) {
+            throw new DomainException("No se puede {$action} un ticket en estado '{$ticket->status}'");
+        }
     }
 
     /**

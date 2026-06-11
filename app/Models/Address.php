@@ -19,11 +19,15 @@ class Address extends Model
         'department',
         'postal_code',
         'reference',
-        'is_main'
+        'is_main',
+        'latitude',
+        'longitude'
     ];
 
     protected $casts = [
         'is_main' => 'boolean',
+        'latitude' => 'decimal:7',
+        'longitude' => 'decimal:7',
     ];
 
     /**

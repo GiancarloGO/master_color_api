@@ -30,12 +30,18 @@ tags:
     description: Registro de tokens push (FCM) del cliente.
   - name: Cliente · Productos
     description: Catálogo de productos para el registro manual de unidades.
+  - name: Cliente · Direcciones
+    description: Direcciones del cliente (con coordenadas) para visitas a domicilio.
   - name: Sesión
     description: Datos del usuario autenticado (staff y cliente).
   - name: Staff · Tickets
     description: Gestión y atención de tickets por técnicos/staff.
   - name: Staff · Usuarios
     description: Listado de técnicos asignables.
+  - name: Staff · Repuestos
+    description: Búsqueda de repuestos y consumo por ticket (descuenta inventario).
+  - name: Staff · Visitas
+    description: Visitas en sitio del técnico (check-in/out con geolocalización y acta de conformidad).
   - name: Staff · Unidades
     description: Consulta de unidades vendidas por el staff.
   - name: Staff · Métricas
@@ -394,6 +400,51 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
 
+  /client/support/tickets/{id}/quote/approve:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [Cliente · Tickets]
+      summary: Aprobar el presupuesto vigente
+      description: El cliente aprueba la cotización; el ticket vuelve a 'en_proceso'.
+      security: [{ clientAuth: [] }]
+      responses:
+        '200':
+          description: Presupuesto aprobado.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/SupportTicketDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /client/support/tickets/{id}/quote/reject:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [Cliente · Tickets]
+      summary: Rechazar el presupuesto vigente
+      security: [{ clientAuth: [] }]
+      responses:
+        '200':
+          description: Presupuesto rechazado.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/SupportTicketDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
   # ───────────────────────────── CLIENTE · DISPOSITIVOS ─────────────────────────
   /client/devices:
     post:
@@ -459,6 +510,31 @@ paths:
                         type: array
                         items: { $ref: '#/components/schemas/ClientProduct' }
                       pagination: { $ref: '#/components/schemas/Pagination' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  # ──────────────────────────── CLIENTE · DIRECCIONES ───────────────────────────
+  /client/addresses:
+    get:
+      tags: [Cliente · Direcciones]
+      summary: Listar direcciones del cliente
+      description: >-
+        Direcciones del cliente autenticado, con coordenadas (latitude/longitude)
+        cuando estén disponibles. Se usan para elegir a dónde va el técnico en un
+        servicio a domicilio.
+      security: [{ clientAuth: [] }]
+      responses:
+        '200':
+          description: Lista de direcciones.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Address' }
         '401': { $ref: '#/components/responses/Unauthorized' }
 
   # ────────────────────────────── STAFF · TICKETS ──────────────────────────────
@@ -728,6 +804,296 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/ValidationError' }
 
+  /support/tickets/agenda:
+    get:
+      tags: [Staff · Tickets]
+      summary: Agenda del técnico autenticado
+      description: Tickets con visita programada en la fecha indicada (default hoy), ordenados por hora, con cliente y dirección.
+      security: [{ staffAuth: [] }]
+      parameters:
+        - name: date
+          in: query
+          description: Fecha (YYYY-MM-DD). Default hoy.
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Tickets programados para la fecha.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/SupportTicket' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /support/tickets/sla:
+    get:
+      tags: [Staff · Tickets]
+      summary: Tickets por SLA (vencidos o por vencer)
+      description: Lista paginada de tickets abiertos cuyo SLA está vencido o próximo a vencer, ordenados por `sla_due_at` ascendente (escalamiento).
+      security: [{ staffAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - name: filter
+          in: query
+          description: 'breached (vencidos) | due_soon (por vencer) | all (ambos, default).'
+          schema: { type: string, enum: [breached, due_soon, all], default: all }
+      responses:
+        '200':
+          description: Lista paginada de tickets por SLA.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/SupportTicket' }
+                      pagination: { $ref: '#/components/schemas/Pagination' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /support/tickets/{id}/schedule:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    patch:
+      tags: [Staff · Tickets]
+      summary: Programar/reprogramar la visita
+      security: [{ staffAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TicketScheduleRequest' }
+      responses:
+        '200':
+          description: Visita programada.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/SupportTicket' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /support/tickets/{id}/quote:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [Staff · Tickets]
+      summary: Crear presupuesto (servicio fuera de garantía)
+      description: Crea la cotización y deja el ticket en 'en_espera_aprobacion'.
+      security: [{ staffAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TicketQuoteCreateRequest' }
+      responses:
+        '201':
+          description: Presupuesto creado.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/SupportTicketDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /support/tickets/{id}/parts:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [Staff · Repuestos]
+      summary: Registrar repuesto consumido (descuenta inventario)
+      security: [{ staffAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TicketPartAddRequest' }
+      responses:
+        '201':
+          description: Repuesto registrado.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/TicketPart' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /support/tickets/{id}/parts/{partId}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+      - name: partId
+        in: path
+        required: true
+        schema: { type: integer }
+    delete:
+      tags: [Staff · Repuestos]
+      summary: Quitar repuesto (revierte el descuento de stock)
+      security: [{ staffAuth: [] }]
+      responses:
+        '200':
+          description: Repuesto eliminado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiSuccess' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /support/tickets/{id}/check-in:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [Staff · Visitas]
+      summary: Check-in de la visita (registra llegada con geolocalización)
+      description: Inicia una visita en sitio. Falla con 409 si ya hay una visita en curso (sin check-out).
+      security: [{ staffAuth: [] }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VisitCheckRequest' }
+      responses:
+        '201':
+          description: Check-in registrado.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/TicketVisit' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /support/tickets/{id}/check-out:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [Staff · Visitas]
+      summary: Check-out de la visita (registra salida con geolocalización)
+      description: Cierra la visita en curso y calcula el tiempo en sitio. Falla con 409 si no hay visita abierta.
+      security: [{ staffAuth: [] }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VisitCheckRequest' }
+      responses:
+        '200':
+          description: Check-out registrado.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/TicketVisit' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /support/tickets/{id}/service-report:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    post:
+      tags: [Staff · Visitas]
+      summary: Reporte de servicio / acta de conformidad con firma
+      description: >
+        Cierra formalmente la visita: registra el trabajo realizado, los repuestos
+        consumidos (descuentan inventario), las fotos y la firma de conformidad del
+        cliente, y genera un acta en PDF. La firma puede enviarse como cadena base64
+        (`client_signature`, JSON) o como archivo (`client_signature_file`, multipart).
+        Las fotos (`photos[]`) requieren multipart/form-data.
+      security: [{ staffAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ServiceReportRequest' }
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/ServiceReportRequest' }
+      responses:
+        '201':
+          description: Reporte de servicio registrado (acta generada).
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/TicketVisit' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /support/parts:
+    get:
+      tags: [Staff · Repuestos]
+      summary: Buscar repuestos del inventario
+      security: [{ staffAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - name: search
+          in: query
+          description: Busca por nombre o SKU del producto.
+          schema: { type: string }
+      responses:
+        '200':
+          description: Lista paginada de repuestos disponibles.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            stock_id: { type: integer, example: 5 }
+                            product_id: { type: integer, example: 88 }
+                            product_name: { type: string, nullable: true }
+                            sku: { type: string, nullable: true }
+                            available_qty: { type: integer, example: 12 }
+                            purchase_price: { type: number, format: double, example: 180.00 }
+                      pagination: { $ref: '#/components/schemas/Pagination' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
   # ────────────────────────────── STAFF · UNIDADES ─────────────────────────────
   /support/units:
     get:
@@ -813,6 +1179,36 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '422': { $ref: '#/components/responses/ValidationError' }
 
+  /support/units/{id}/history:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [Staff · Unidades]
+      summary: Historial de servicio del equipo
+      description: Línea de tiempo cronológica (más reciente primero) de aperturas de ticket, visitas y diagnósticos/resoluciones de la unidad.
+      security: [{ staffAuth: [] }]
+      responses:
+        '200':
+          description: Historial de servicio.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          unit: { $ref: '#/components/schemas/SoldUnit' }
+                          tickets_count: { type: integer, example: 3 }
+                          timeline:
+                            type: array
+                            items: { $ref: '#/components/schemas/ServiceHistoryEvent' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
   # ────────────────────────────── STAFF · USUARIOS ─────────────────────────────
   /support/technicians:
     get:
@@ -827,6 +1223,18 @@ paths:
           in: query
           description: Busca por nombre o email.
           schema: { type: string }
+        - name: specialty
+          in: query
+          description: Filtra técnicos que atienden esta categoría.
+          schema: { type: string, enum: [garantia, instalacion, falla, consulta, otro] }
+        - name: zone
+          in: query
+          description: Filtra técnicos que cubren este distrito/zona.
+          schema: { type: string }
+        - name: available_only
+          in: query
+          description: Si es true, solo técnicos disponibles.
+          schema: { type: boolean }
       responses:
         '200':
           description: Lista paginada de técnicos.
@@ -843,6 +1251,31 @@ paths:
                       pagination: { $ref: '#/components/schemas/Pagination' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+
+  /support/technicians/me:
+    patch:
+      tags: [Staff · Usuarios]
+      summary: Actualizar el perfil del técnico autenticado
+      description: Permite al técnico definir sus especialidades, zonas de cobertura y disponibilidad.
+      security: [{ staffAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TechnicianProfileRequest' }
+      responses:
+        '200':
+          description: Perfil actualizado.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Technician' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
 
   # ────────────────────────────── STAFF · MÉTRICAS ─────────────────────────────
   /support/metrics:
@@ -1038,12 +1471,38 @@ components:
         email: { type: string, format: email, example: 'ana@example.com' }
     Technician:
       type: object
-      description: Técnico asignable a un ticket.
+      description: Técnico asignable a un ticket, con su perfil para asignación inteligente.
       properties:
         id: { type: integer, example: 7 }
         name: { type: string, example: 'Carlos Pérez' }
         email: { type: string, format: email, example: 'carlos@mastercolor.com' }
+        phone: { type: string, nullable: true, example: '900000001' }
         active: { type: boolean, example: true }
+        is_available:
+          type: boolean
+          description: Si el técnico acepta nuevas asignaciones de visitas.
+          example: true
+        specialties:
+          type: array
+          description: Categorías de ticket que atiende.
+          items: { type: string, enum: [garantia, instalacion, falla, consulta, otro] }
+          example: [instalacion, falla]
+        coverage_zones:
+          type: array
+          description: Distritos/zonas que cubre.
+          items: { type: string }
+          example: [Miraflores, San Isidro]
+    TechnicianProfileRequest:
+      type: object
+      description: Campos del perfil del técnico autenticado (todos opcionales).
+      properties:
+        specialties:
+          type: array
+          items: { type: string, enum: [garantia, instalacion, falla, consulta, otro] }
+        coverage_zones:
+          type: array
+          items: { type: string, maxLength: 100 }
+        is_available: { type: boolean }
     ClientProduct:
       type: object
       description: Producto del catálogo (vista ligera para registro de unidad).
@@ -1052,6 +1511,29 @@ components:
         name: { type: string, example: 'Toner Konica Minolta C458' }
         sku: { type: string, nullable: true, example: 'TN-C458-K' }
         warranty_months: { type: integer, nullable: true, example: 12 }
+        image_url:
+          type: string
+          nullable: true
+          description: URL absoluta de la imagen del producto. null si no tiene.
+          example: 'https://mastercolorfiles.s3.us-east-2.amazonaws.com/products/88.jpg'
+
+    Address:
+      type: object
+      description: Dirección del cliente, con coordenadas para visitas a domicilio.
+      properties:
+        id: { type: integer, example: 16 }
+        client_id: { type: integer, nullable: true, example: 12 }
+        address_full: { type: string, example: 'Av. Prueba 123' }
+        district: { type: string, example: 'Lima' }
+        province: { type: string, example: 'Lima' }
+        department: { type: string, example: 'Lima' }
+        postal_code: { type: string, nullable: true, example: '15001' }
+        reference: { type: string, nullable: true, example: 'Puerta azul' }
+        is_main: { type: boolean, example: true }
+        latitude: { type: number, format: double, nullable: true, example: -12.0464 }
+        longitude: { type: number, format: double, nullable: true, example: -77.0428 }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
 
     # ── Enums ──
     SoldUnitStatus:
@@ -1065,7 +1547,7 @@ components:
       enum: [baja, media, alta, urgente]
     TicketStatus:
       type: string
-      enum: [abierto, asignado, en_proceso, en_espera_cliente, resuelto, cerrado, cancelado]
+      enum: [abierto, asignado, en_proceso, en_espera_cliente, en_espera_aprobacion, resuelto, cerrado, cancelado]
     TicketChannel:
       type: string
       enum: [app, web, telefono]
@@ -1084,6 +1566,11 @@ components:
         client_id: { type: integer, example: 33 }
         product_id: { type: integer, example: 88 }
         product_name: { type: string, example: 'Máquina tintométrica MC-200' }
+        image_url:
+          type: string
+          nullable: true
+          description: URL absoluta de la imagen del producto asociado. null si no tiene.
+          example: 'https://mastercolorfiles.s3.us-east-2.amazonaws.com/products/88.jpg'
         order_id: { type: integer, nullable: true, example: 512 }
         serial_number:
           type: string
@@ -1144,16 +1631,52 @@ components:
         description: { type: string }
         status: { $ref: '#/components/schemas/TicketStatus' }
         channel: { $ref: '#/components/schemas/TicketChannel' }
+        service_type:
+          type: string
+          enum: [remoto, domicilio, taller]
+          description: Tipo de servicio. Si es 'domicilio', service_address está presente.
+          example: domicilio
+        service_address_id: { type: integer, nullable: true, example: 16 }
+        scheduled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Fecha/hora programada de la visita.
+        scheduled_window_minutes:
+          type: integer
+          nullable: true
+          description: Ventana de tolerancia en minutos.
+          example: 60
         assigned_user_id: { type: integer, nullable: true, example: 7 }
         assigned_user_name: { type: string, nullable: true, example: 'Carlos Pérez' }
         is_warranty_covered: { type: boolean, nullable: true, example: true }
         sla_due_at: { type: string, format: date-time, nullable: true }
+        sla_status:
+          type: string
+          nullable: true
+          enum: [on_track, due_soon, breached]
+          description: Estado del SLA del ticket; null si está resuelto/cerrado/cancelado o sin SLA.
+          example: due_soon
         first_response_at: { type: string, format: date-time, nullable: true }
         resolved_at: { type: string, format: date-time, nullable: true }
         closed_at: { type: string, format: date-time, nullable: true }
         rating: { type: integer, nullable: true, minimum: 1, maximum: 5 }
+        rating_comment: { type: string, nullable: true, example: 'Excelente atención' }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
+        client:
+          type: object
+          nullable: true
+          description: Datos del cliente (presente en cola y detalle).
+          properties:
+            id: { type: integer, example: 12 }
+            name: { type: string, example: 'ACME S.A.C.' }
+            email: { type: string, nullable: true, example: 'contacto@acme.com' }
+            phone: { type: string, nullable: true, example: '910000001' }
+        service_address:
+          allOf: [{ $ref: '#/components/schemas/Address' }]
+          nullable: true
+          description: Dirección del servicio a domicilio (presente si aplica).
     SupportTicketDetail:
       allOf:
         - $ref: '#/components/schemas/SupportTicket'
@@ -1171,6 +1694,162 @@ components:
               items: { $ref: '#/components/schemas/TicketStatusHistory' }
             diagnosis: { type: string, nullable: true }
             parts_used: { type: string, nullable: true }
+            parts:
+              type: array
+              description: Repuestos consumidos (descuentan inventario).
+              items: { $ref: '#/components/schemas/TicketPart' }
+            visits:
+              type: array
+              description: Visitas en sitio (check-in/out y reportes de servicio).
+              items: { $ref: '#/components/schemas/TicketVisit' }
+            quote:
+              allOf: [{ $ref: '#/components/schemas/TicketQuote' }]
+              nullable: true
+              description: Cotización vigente (la más reciente), si existe.
+    TicketPart:
+      type: object
+      properties:
+        id: { type: integer, example: 12 }
+        stock_id: { type: integer, example: 5 }
+        product_name: { type: string, nullable: true, example: 'Fusor Konica C458' }
+        sku: { type: string, nullable: true, example: 'FUS-C458' }
+        quantity: { type: integer, example: 1 }
+        unit_cost: { type: number, format: double, nullable: true, example: 180.00 }
+        created_at: { type: string, format: date-time }
+    TicketQuote:
+      type: object
+      properties:
+        id: { type: integer, example: 30 }
+        ticket_id: { type: integer, example: 4501 }
+        labor_cost: { type: number, format: double, example: 120.00 }
+        parts_cost: { type: number, format: double, example: 50.00 }
+        total: { type: number, format: double, example: 170.00 }
+        currency: { type: string, example: 'PEN' }
+        status: { type: string, enum: [pendiente, aprobado, rechazado], example: pendiente }
+        note: { type: string, nullable: true }
+        created_by_user_id: { type: integer, nullable: true, example: 7 }
+        decided_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+    TicketVisit:
+      type: object
+      properties:
+        id: { type: integer, example: 8 }
+        ticket_id: { type: integer, example: 4501 }
+        technician_id: { type: integer, example: 7 }
+        technician_name: { type: string, nullable: true, example: 'Carlos Pérez' }
+        checkin_at: { type: string, format: date-time, nullable: true }
+        checkin_latitude: { type: number, format: double, nullable: true, example: -12.0464 }
+        checkin_longitude: { type: number, format: double, nullable: true, example: -77.0428 }
+        checkout_at: { type: string, format: date-time, nullable: true }
+        checkout_latitude: { type: number, format: double, nullable: true }
+        checkout_longitude: { type: number, format: double, nullable: true }
+        duration_minutes:
+          type: integer
+          nullable: true
+          description: Tiempo en sitio (null mientras la visita siga abierta).
+          example: 45
+        work_done: { type: string, nullable: true, example: 'Se reemplazó el fusor y se calibró.' }
+        client_signed_name: { type: string, nullable: true, example: 'Juan Pérez' }
+        signature_url: { type: string, format: uri, nullable: true }
+        report_pdf_url:
+          type: string
+          format: uri
+          nullable: true
+          description: URL del acta de conformidad en PDF.
+        reported_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+    VisitCheckRequest:
+      type: object
+      description: Geolocalización del check-in/check-out (todos opcionales).
+      properties:
+        latitude: { type: number, format: double, minimum: -90, maximum: 90, example: -12.0464 }
+        longitude: { type: number, format: double, minimum: -180, maximum: 180, example: -77.0428 }
+        at:
+          type: string
+          format: date-time
+          description: Momento del registro. Si se omite, se usa la hora del servidor.
+    ServiceReportRequest:
+      type: object
+      required: [work_done]
+      properties:
+        work_done: { type: string, example: 'Se reemplazó el fusor y se calibró la máquina.' }
+        client_signed_name: { type: string, maxLength: 150, nullable: true, example: 'Juan Pérez' }
+        client_signature:
+          type: string
+          nullable: true
+          description: Firma como cadena base64 (data URI o base64 puro). Alternativa a client_signature_file.
+        client_signature_file:
+          type: string
+          format: binary
+          nullable: true
+          description: Firma como imagen (multipart). Alternativa a client_signature.
+        parts:
+          type: array
+          description: Repuestos consumidos durante la visita (descuentan inventario).
+          items:
+            type: object
+            required: [stock_id, qty]
+            properties:
+              stock_id: { type: integer, example: 5 }
+              qty: { type: integer, minimum: 1, example: 1 }
+        photos:
+          type: array
+          maxItems: 10
+          description: Fotos del servicio (multipart).
+          items: { type: string, format: binary }
+        resolve:
+          type: boolean
+          nullable: true
+          description: Si es true, marca el ticket como 'resuelto' al cerrar el acta.
+    ServiceHistoryEvent:
+      type: object
+      description: Evento de la línea de tiempo del historial de servicio de una unidad.
+      properties:
+        type:
+          type: string
+          enum: [ticket_opened, visit, resolved]
+        at: { type: string, format: date-time }
+        ticket_id: { type: integer, example: 4501 }
+        ticket_code: { type: string, example: 'SOP-2026-0001' }
+        category: { type: string, nullable: true, description: 'Solo en ticket_opened.' }
+        subject: { type: string, nullable: true, description: 'Solo en ticket_opened.' }
+        technician: { type: string, nullable: true, description: 'Técnico (visit / resolved).' }
+        checkin_at: { type: string, format: date-time, nullable: true, description: 'Solo en visit.' }
+        checkout_at: { type: string, format: date-time, nullable: true, description: 'Solo en visit.' }
+        duration_minutes: { type: integer, nullable: true, description: 'Solo en visit.' }
+        work_done: { type: string, nullable: true, description: 'Solo en visit.' }
+        reported_at: { type: string, format: date-time, nullable: true, description: 'Solo en visit.' }
+        diagnosis: { type: string, nullable: true, description: 'Solo en resolved.' }
+    TicketScheduleRequest:
+      type: object
+      required: [scheduled_at]
+      properties:
+        scheduled_at: { type: string, format: date-time, example: '2026-06-10T15:00:00Z' }
+        scheduled_window_minutes: { type: integer, nullable: true, example: 60 }
+        note: { type: string, nullable: true }
+    TicketPartAddRequest:
+      type: object
+      required: [stock_id, quantity]
+      properties:
+        stock_id: { type: integer, example: 5 }
+        quantity: { type: integer, minimum: 1, example: 1 }
+        unit_cost:
+          type: number
+          format: double
+          nullable: true
+          description: Si se omite, se toma el precio de compra del stock.
+    TicketQuoteCreateRequest:
+      type: object
+      required: [labor_cost]
+      properties:
+        labor_cost: { type: number, format: double, example: 120.00 }
+        parts_cost:
+          type: number
+          format: double
+          nullable: true
+          description: Si se omite, se calcula de los repuestos registrados.
+        currency: { type: string, default: 'PEN', example: 'PEN' }
+        note: { type: string, nullable: true }
     TicketCreateRequest:
       type: object
       required: [category, subject, description]
@@ -1184,6 +1863,16 @@ components:
           $ref: '#/components/schemas/TicketPriority'
         subject: { type: string, maxLength: 150, example: 'La máquina no enciende' }
         description: { type: string, example: 'Al conectar no muestra señal de encendido.' }
+        service_type:
+          type: string
+          enum: [remoto, domicilio, taller]
+          default: remoto
+          description: Tipo de servicio. Si es 'domicilio', service_address_id es obligatorio.
+        service_address_id:
+          type: integer
+          nullable: true
+          description: Dirección del cliente a la que va el técnico (requerido si service_type=domicilio).
+          example: 16
     TicketMessage:
       type: object
       properties:

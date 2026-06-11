@@ -66,6 +66,8 @@ class ClientAddressController extends Controller
                 'postal_code' => $request->postal_code,
                 'reference' => $request->reference,
                 'is_main' => $is_main,
+                'latitude' => $request->latitude,
+                'longitude' => $request->longitude,
             ]);
 
             return ApiResponseClass::sendResponse(

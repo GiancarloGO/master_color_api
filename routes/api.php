@@ -27,6 +27,8 @@ use App\Http\Controllers\ClientDeviceController;
 use App\Http\Controllers\SupportDeviceController;
 use App\Http\Controllers\SupportMetricsController;
 use App\Http\Controllers\SupportTechnicianController;
+use App\Http\Controllers\SupportPartController;
+use App\Http\Controllers\SupportVisitController;
 use App\Http\Controllers\ClientProductController;
 
 /*
@@ -321,6 +323,7 @@ Route::prefix('client/units')->middleware([\App\Http\Middleware\ClientAuth::clas
 Route::prefix('support/units')->middleware(['jwt.auth', 'check.token.version'])->group(function () {
     Route::get('/', [SupportUnitController::class, 'index'])->name('support.units.index');
     Route::get('/{id}', [SupportUnitController::class, 'show'])->whereNumber('id')->name('support.units.show');
+    Route::get('/{id}/history', [SupportUnitController::class, 'history'])->whereNumber('id')->name('support.units.history');
     Route::patch('/{id}', [SupportUnitController::class, 'update'])->whereNumber('id')->name('support.units.update');
 });
 
@@ -342,6 +345,7 @@ Route::middleware(['jwt.auth', 'check.token.version'])->group(function () {
 
 Route::middleware(['jwt.auth', 'check.token.version'])->group(function () {
     Route::get('support/technicians', [SupportTechnicianController::class, 'index'])->name('support.technicians');
+    Route::patch('support/technicians/me', [SupportTechnicianController::class, 'updateProfile'])->name('support.technicians.profile');
 });
 
 /*
@@ -358,6 +362,8 @@ Route::prefix('client/support/tickets')->middleware([\App\Http\Middleware\Client
     Route::post('/{id}/attachments', [ClientSupportTicketController::class, 'attachments'])->whereNumber('id')->name('client.tickets.attachments');
     Route::post('/{id}/rate', [ClientSupportTicketController::class, 'rate'])->whereNumber('id')->name('client.tickets.rate');
     Route::put('/{id}/reopen', [ClientSupportTicketController::class, 'reopen'])->whereNumber('id')->name('client.tickets.reopen');
+    Route::post('/{id}/quote/approve', [ClientSupportTicketController::class, 'approveQuote'])->whereNumber('id')->name('client.tickets.quote.approve');
+    Route::post('/{id}/quote/reject', [ClientSupportTicketController::class, 'rejectQuote'])->whereNumber('id')->name('client.tickets.quote.reject');
 });
 
 /*
@@ -369,12 +375,25 @@ Route::prefix('client/support/tickets')->middleware([\App\Http\Middleware\Client
 Route::prefix('support/tickets')->middleware(['jwt.auth', 'check.token.version'])->group(function () {
     Route::get('/', [SupportTicketController::class, 'index'])->name('support.tickets.index');
     Route::get('/mine', [SupportTicketController::class, 'mine'])->name('support.tickets.mine');
+    Route::get('/agenda', [SupportTicketController::class, 'agenda'])->name('support.tickets.agenda');
+    Route::get('/sla', [SupportTicketController::class, 'sla'])->name('support.tickets.sla');
     Route::get('/{id}', [SupportTicketController::class, 'show'])->whereNumber('id')->name('support.tickets.show');
     Route::patch('/{id}/assign', [SupportTicketController::class, 'assign'])->whereNumber('id')->name('support.tickets.assign');
     Route::patch('/{id}/status', [SupportTicketController::class, 'status'])->whereNumber('id')->name('support.tickets.status');
+    Route::patch('/{id}/schedule', [SupportTicketController::class, 'schedule'])->whereNumber('id')->name('support.tickets.schedule');
     Route::post('/{id}/messages', [SupportTicketController::class, 'messages'])->whereNumber('id')->name('support.tickets.messages');
     Route::post('/{id}/attachments', [SupportTicketController::class, 'attachments'])->whereNumber('id')->name('support.tickets.attachments');
     Route::post('/{id}/diagnosis', [SupportTicketController::class, 'diagnosis'])->whereNumber('id')->name('support.tickets.diagnosis');
+    Route::post('/{id}/quote', [SupportTicketController::class, 'quote'])->whereNumber('id')->name('support.tickets.quote');
+    Route::post('/{id}/parts', [SupportPartController::class, 'store'])->whereNumber('id')->name('support.tickets.parts.store');
+    Route::delete('/{id}/parts/{partId}', [SupportPartController::class, 'destroy'])->whereNumber('id')->whereNumber('partId')->name('support.tickets.parts.destroy');
+    Route::post('/{id}/check-in', [SupportVisitController::class, 'checkIn'])->whereNumber('id')->name('support.tickets.check-in');
+    Route::post('/{id}/check-out', [SupportVisitController::class, 'checkOut'])->whereNumber('id')->name('support.tickets.check-out');
+    Route::post('/{id}/service-report', [SupportVisitController::class, 'serviceReport'])->whereNumber('id')->name('support.tickets.service-report');
+});
+
+Route::prefix('support/parts')->middleware(['jwt.auth', 'check.token.version'])->group(function () {
+    Route::get('/', [SupportPartController::class, 'index'])->name('support.parts.index');
 });
 
 /*

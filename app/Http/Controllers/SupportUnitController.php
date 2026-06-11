@@ -71,6 +71,76 @@ class SupportUnitController extends Controller
     }
 
     /**
+     * Historial de servicio del equipo: línea de tiempo cronológica de
+     * aperturas de ticket, visitas (check-in/out) y diagnósticos/resoluciones.
+     */
+    public function history(string $id)
+    {
+        try {
+            $unit = SoldUnit::with([
+                'product',
+                'tickets' => fn ($q) => $q->orderByDesc('created_at'),
+                'tickets.visits.technician',
+                'tickets.assignedUser',
+            ])->find($id);
+
+            if (!$unit) {
+                return ApiResponseClass::errorResponse('Unidad no encontrada', 404);
+            }
+
+            $timeline = [];
+
+            foreach ($unit->tickets as $ticket) {
+                $timeline[] = [
+                    'type' => 'ticket_opened',
+                    'at' => $ticket->created_at,
+                    'ticket_id' => $ticket->id,
+                    'ticket_code' => $ticket->code,
+                    'category' => $ticket->category,
+                    'subject' => $ticket->subject,
+                ];
+
+                foreach ($ticket->visits as $visit) {
+                    $timeline[] = [
+                        'type' => 'visit',
+                        'at' => $visit->checkin_at ?? $visit->reported_at ?? $visit->created_at,
+                        'ticket_id' => $ticket->id,
+                        'ticket_code' => $ticket->code,
+                        'technician' => $visit->technician?->name,
+                        'checkin_at' => $visit->checkin_at,
+                        'checkout_at' => $visit->checkout_at,
+                        'duration_minutes' => $visit->durationMinutes(),
+                        'work_done' => $visit->work_done,
+                        'reported_at' => $visit->reported_at,
+                    ];
+                }
+
+                if ($ticket->resolved_at) {
+                    $timeline[] = [
+                        'type' => 'resolved',
+                        'at' => $ticket->resolved_at,
+                        'ticket_id' => $ticket->id,
+                        'ticket_code' => $ticket->code,
+                        'technician' => $ticket->assignedUser?->name,
+                        'diagnosis' => $ticket->diagnosis,
+                    ];
+                }
+            }
+
+            // Más reciente primero.
+            usort($timeline, fn ($a, $b) => ($b['at']?->timestamp ?? 0) <=> ($a['at']?->timestamp ?? 0));
+
+            return ApiResponseClass::sendResponse([
+                'unit' => new SoldUnitResource($unit),
+                'tickets_count' => $unit->tickets->count(),
+                'timeline' => $timeline,
+            ], 'Historial de servicio de la unidad', 200);
+        } catch (\Exception $e) {
+            return ApiResponseClass::errorResponse('Error al obtener el historial', 500, [$e->getMessage()]);
+        }
+    }
+
+    /**
      * Actualizar una unidad (asignar nº de serie y/o estado).
      */
     public function update(Request $request, string $id)

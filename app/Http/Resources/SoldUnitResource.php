@@ -15,6 +15,8 @@ class SoldUnitResource extends JsonResource
             'client_id' => $this->client_id,
             'product_id' => $this->product_id,
             'product_name' => $this->whenLoaded('product', fn () => $this->product->name),
+            // URL absoluta de la imagen del producto (accessor → S3); null si no tiene.
+            'image_url' => $this->whenLoaded('product', fn () => $this->product->image_url),
             'order_id' => $this->order_id,
             'serial_number' => $this->serial_number,
             'purchase_date' => $this->purchase_date?->toDateString(),

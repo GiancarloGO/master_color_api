@@ -7,7 +7,9 @@ use App\Http\Resources\SupportTicketResource;
 use App\Http\Resources\TicketMessageResource;
 use App\Http\Resources\TicketAttachmentResource;
 use App\Models\SoldUnit;
+use App\Models\TicketQuote;
 use App\Services\SupportTicketService;
+use App\Services\TicketQuoteService;
 use DomainException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -15,7 +17,10 @@ use Illuminate\Support\Facades\Validator;
 
 class ClientSupportTicketController extends Controller
 {
-    public function __construct(private SupportTicketService $tickets) {}
+    public function __construct(
+        private SupportTicketService $tickets,
+        private TicketQuoteService $quotes,
+    ) {}
 
     public function index(Request $request)
     {
@@ -25,7 +30,7 @@ class ClientSupportTicketController extends Controller
                 return ApiResponseClass::errorResponse('No autenticado', 401);
             }
 
-            $query = $client->supportTickets()->with('assignedUser');
+            $query = $client->supportTickets()->with(['assignedUser', 'serviceAddress']);
 
             if ($request->filled('status')) {
                 $query->where('status', $request->status);
@@ -59,6 +64,8 @@ class ClientSupportTicketController extends Controller
                 'priority' => 'nullable|in:baja,media,alta,urgente',
                 'subject' => 'required|string|max:150',
                 'description' => 'required|string',
+                'service_type' => 'nullable|in:remoto,domicilio,taller',
+                'service_address_id' => 'required_if:service_type,domicilio|nullable|integer|exists:addresses,id',
             ]);
 
             if ($validator->fails()) {
@@ -73,6 +80,17 @@ class ClientSupportTicketController extends Controller
 
                 if (!$unit) {
                     return ApiResponseClass::errorResponse('La unidad no pertenece al cliente', 422);
+                }
+            }
+
+            // La dirección de servicio debe pertenecer al cliente.
+            if ($request->filled('service_address_id')) {
+                $ownsAddress = $client->addresses()
+                    ->where('id', $request->service_address_id)
+                    ->exists();
+
+                if (!$ownsAddress) {
+                    return ApiResponseClass::errorResponse('La dirección no pertenece al cliente', 422);
                 }
             }
 
@@ -99,6 +117,10 @@ class ClientSupportTicketController extends Controller
             $ticket->load([
                 'assignedUser',
                 'soldUnit.product',
+                'serviceAddress',
+                'parts.stock.product',
+                'visits.technician',
+                'latestQuote',
                 // Solo mensajes públicos para el cliente.
                 'messages' => fn ($q) => $q->where('is_internal', false)->with('attachments')->orderBy('created_at'),
                 'attachments',
@@ -232,6 +254,49 @@ class ClientSupportTicketController extends Controller
             return ApiResponseClass::errorResponse($e->getMessage(), 409);
         } catch (\Exception $e) {
             return ApiResponseClass::errorResponse('Error al reabrir ticket', 500, [$e->getMessage()]);
+        }
+    }
+
+    /**
+     * El cliente aprueba el presupuesto vigente del ticket.
+     */
+    public function approveQuote(Request $request, string $id)
+    {
+        return $this->decideQuote($id, true);
+    }
+
+    /**
+     * El cliente rechaza el presupuesto vigente del ticket.
+     */
+    public function rejectQuote(Request $request, string $id)
+    {
+        return $this->decideQuote($id, false);
+    }
+
+    private function decideQuote(string $id, bool $approved)
+    {
+        try {
+            $ticket = $this->findClientTicket($id);
+            if (!$ticket) {
+                return ApiResponseClass::errorResponse('Ticket no encontrado', 404);
+            }
+
+            $quote = $ticket->latestQuote()->first();
+            if (!$quote) {
+                return ApiResponseClass::errorResponse('No hay presupuesto para este ticket', 404);
+            }
+
+            $this->quotes->decide($ticket, $quote, $approved, Auth::guard('client')->user());
+
+            return ApiResponseClass::sendResponse(
+                new SupportTicketResource($ticket->fresh()->load('latestQuote')),
+                $approved ? 'Presupuesto aprobado' : 'Presupuesto rechazado',
+                200
+            );
+        } catch (DomainException $e) {
+            return ApiResponseClass::errorResponse($e->getMessage(), 409);
+        } catch (\Exception $e) {
+            return ApiResponseClass::errorResponse('Error al procesar el presupuesto', 500, [$e->getMessage()]);
         }
     }
 
