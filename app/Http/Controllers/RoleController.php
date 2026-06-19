@@ -14,7 +14,7 @@ class RoleController extends Controller
     public function index()
     {
         $roles = Role::paginate(15);
-        return ApiResponseClass::sendResponse(RoleResource::collection($roles), 'Lista de roles', 200);
+        return ApiResponseClass::sendPaginatedResponse(RoleResource::collection($roles), $roles, 'Lista de roles', 200);
     }
 
     public function store(RoleStoreRequest $request)

@@ -45,15 +45,12 @@ class AuditLogController extends Controller
             $perPage = $request->integer('per_page', 50);
             $logs = $query->paginate(min($perPage, 200));
 
-            return ApiResponseClass::sendResponse([
-                'logs' => AuditLogResource::collection($logs->items()),
-                'pagination' => [
-                    'current_page' => $logs->currentPage(),
-                    'last_page'    => $logs->lastPage(),
-                    'per_page'     => $logs->perPage(),
-                    'total'        => $logs->total(),
-                ],
-            ], 'Registros de auditoría');
+            return ApiResponseClass::sendPaginatedResponse(
+                AuditLogResource::collection($logs),
+                $logs,
+                'Registros de auditoría',
+                200
+            );
         } catch (\Exception $e) {
             return ApiResponseClass::errorResponse('Error al obtener registros de auditoría', 500, [$e->getMessage()]);
         }

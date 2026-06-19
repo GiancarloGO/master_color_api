@@ -26,8 +26,9 @@ class ClientAddressController extends Controller
 
             $addresses = $client->addresses()->paginate(10);
 
-            return ApiResponseClass::sendResponse(
+            return ApiResponseClass::sendPaginatedResponse(
                 AddressResource::collection($addresses),
+                $addresses,
                 'Direcciones del cliente',
                 200
             );

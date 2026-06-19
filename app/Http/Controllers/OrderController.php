@@ -55,10 +55,17 @@ class OrderController extends Controller
             if ($paginate === true) {
                 $perPage = $request->input('per_page', 15);
                 $orders = $query->paginate($perPage);
-            } else {
-                $orders = $query->get();
+
+                return ApiResponseClass::sendPaginatedResponse(
+                    OrderResource::collection($orders),
+                    $orders,
+                    'Lista de pedidos',
+                    200
+                );
             }
-            
+
+            $orders = $query->get();
+
             return ApiResponseClass::sendResponse(
                 OrderResource::collection($orders),
                 'Lista de pedidos',
@@ -240,10 +247,17 @@ class OrderController extends Controller
             if ($paginate === true) {
                 $perPage = $request->input('per_page', 15);
                 $orders = $query->paginate($perPage);
-            } else {
-                $orders = $query->get();
+
+                return ApiResponseClass::sendPaginatedResponse(
+                    OrderResource::collection($orders),
+                    $orders,
+                    "Pedidos con estado: {$status}",
+                    200
+                );
             }
-            
+
+            $orders = $query->get();
+
             return ApiResponseClass::sendResponse(
                 OrderResource::collection($orders),
                 "Pedidos con estado: {$status}",
@@ -311,10 +325,17 @@ class OrderController extends Controller
             if ($paginate === true) {
                 $perPage = $request->input('per_page', 15);
                 $orders = $query->paginate($perPage);
-            } else {
-                $orders = $query->get();
+
+                return ApiResponseClass::sendPaginatedResponse(
+                    OrderResource::collection($orders),
+                    $orders,
+                    'Resultados de búsqueda',
+                    200
+                );
             }
-            
+
+            $orders = $query->get();
+
             return ApiResponseClass::sendResponse(
                 OrderResource::collection($orders),
                 'Resultados de búsqueda',

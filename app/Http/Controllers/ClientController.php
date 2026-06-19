@@ -54,17 +54,12 @@ class ClientController extends Controller
             $perPage = $request->get('per_page', 15);
             $clients = $query->orderBy('created_at', 'desc')->paginate($perPage);
             
-            return ApiResponseClass::sendResponse([
-                'clients' => ClientResource::collection($clients->items()),
-                'pagination' => [
-                    'current_page' => $clients->currentPage(),
-                    'last_page' => $clients->lastPage(),
-                    'per_page' => $clients->perPage(),
-                    'total' => $clients->total(),
-                    'from' => $clients->firstItem(),
-                    'to' => $clients->lastItem(),
-                ]
-            ], 'Lista de clientes');
+            return ApiResponseClass::sendPaginatedResponse(
+                ClientResource::collection($clients),
+                $clients,
+                'Lista de clientes',
+                200
+            );
         } catch (\Exception $e) {
             return ApiResponseClass::errorResponse('Error al obtener los clientes', 500, [$e->getMessage()]);
         }
@@ -240,17 +235,12 @@ class ClientController extends Controller
             $perPage = $request->get('per_page', 15);
             $clients = $query->orderBy('deleted_at', 'desc')->paginate($perPage);
             
-            return ApiResponseClass::sendResponse([
-                'clients' => ClientResource::collection($clients->items()),
-                'pagination' => [
-                    'current_page' => $clients->currentPage(),
-                    'last_page' => $clients->lastPage(),
-                    'per_page' => $clients->perPage(),
-                    'total' => $clients->total(),
-                    'from' => $clients->firstItem(),
-                    'to' => $clients->lastItem(),
-                ]
-            ], 'Lista de clientes eliminados');
+            return ApiResponseClass::sendPaginatedResponse(
+                ClientResource::collection($clients),
+                $clients,
+                'Lista de clientes eliminados',
+                200
+            );
         } catch (\Exception $e) {
             return ApiResponseClass::errorResponse('Error al obtener los clientes eliminados', 500, [$e->getMessage()]);
         }

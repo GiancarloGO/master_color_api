@@ -40,10 +40,11 @@ class ClientOrderController extends Controller
             }
             
             $orders = $query->orderBy('created_at', 'desc')->paginate(10);
-            
-            return ApiResponseClass::sendResponse(
-                OrderResource::collection($orders), 
-                'Historial de pedidos', 
+
+            return ApiResponseClass::sendPaginatedResponse(
+                OrderResource::collection($orders),
+                $orders,
+                'Historial de pedidos',
                 200
             );
         } catch (\Exception $e) {
@@ -382,13 +383,20 @@ class ClientOrderController extends Controller
             $paginate = filter_var($paginate, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
             if ($paginate === false) {
                 $orderDetails = $orderDetailsQuery->get();
-            } else {
-                $perPage = intval($request->query('per_page', 10));
-                $orderDetails = $orderDetailsQuery->paginate($perPage);
+
+                return ApiResponseClass::sendResponse(
+                    OrderDetailResource::collection($orderDetails),
+                    'Productos comprados',
+                    200
+                );
             }
 
-            return ApiResponseClass::sendResponse(
+            $perPage = intval($request->query('per_page', 10));
+            $orderDetails = $orderDetailsQuery->paginate($perPage);
+
+            return ApiResponseClass::sendPaginatedResponse(
                 OrderDetailResource::collection($orderDetails),
+                $orderDetails,
                 'Productos comprados',
                 200
             );
