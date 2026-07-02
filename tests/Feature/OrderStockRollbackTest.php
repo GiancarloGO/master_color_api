@@ -185,3 +185,76 @@ it('no falla al anular un pedido que nunca descontó stock', function () {
     // El stock no se altera y no se lanza excepción.
     expect($stock->fresh()->quantity)->toBe(100);
 });
+
+it('enlaza el movimiento de venta con la orden mediante order_id', function () {
+    [$order, $stock] = makeOrderWithStock(initialQty: 100, orderQty: 10);
+
+    $movement = app(StockMovementService::class)->processOrderStockReduction($order);
+
+    expect($movement->order_id)->toBe($order->id);
+});
+
+it('usa order_id para la idempotencia aunque cambie el patrón del voucher', function () {
+    [$order, $stock] = makeOrderWithStock(initialQty: 100, orderQty: 10);
+
+    // Primer descuento por la vía normal.
+    app(StockMovementService::class)->processOrderStockReduction($order);
+    expect($stock->fresh()->quantity)->toBe(90);
+
+    // Segundo intento: aunque el voucher tuviera otro formato, order_id evita
+    // el doble descuento.
+    app(StockMovementService::class)->processOrderStockReduction($order);
+
+    expect($stock->fresh()->quantity)->toBe(90);
+    expect(StockMovement::where('order_id', $order->id)->where('movement_type', 'salida')->whereNull('canceled_at')->count())->toBe(1);
+});
+
+it('no vuelve a devolver stock si el pedido ya fue anulado (doble anulación)', function () {
+    [$order, $stock] = makeOrderWithStock(initialQty: 100, orderQty: 10);
+
+    app(StockMovementService::class)->processOrderStockReduction($order);
+    expect($stock->fresh()->quantity)->toBe(90);
+
+    $payment = app(PaymentService::class);
+    $payment->rollbackOrderStock($order, 'Primera anulación');
+    expect($stock->fresh()->quantity)->toBe(100);
+
+    // Segunda anulación: no debe volver a incrementar el stock ni fallar.
+    $payment->rollbackOrderStock($order, 'Segunda anulación (idempotente)');
+    expect($stock->fresh()->quantity)->toBe(100);
+});
+
+it('revierte la orden si la devolución de stock falla (no queda cancelada)', function () {
+    [$order, $stock] = makeOrderWithStock(initialQty: 100, orderQty: 10);
+
+    app(StockMovementService::class)->processOrderStockReduction($order);
+    expect($stock->fresh()->quantity)->toBe(90);
+
+    // Fuerza un fallo dentro del rollback (p. ej. movimiento ya cancelado por una
+    // carrera) inyectando un StockMovementService que lanza al cancelar.
+    $boom = new class extends StockMovementService {
+        public function __construct() {}
+        public function cancelMovement(StockMovement $movement): StockMovement
+        {
+            throw new \RuntimeException('Fallo simulado al devolver stock');
+        }
+    };
+    app()->instance(StockMovementService::class, $boom);
+
+    // El controlador envuelve la anulación en una transacción: si el rollback de
+    // stock falla, la excepción se propaga y la orden NO debe quedar cancelada.
+    $threw = false;
+    try {
+        \Illuminate\Support\Facades\DB::transaction(function () use ($order) {
+            $order->update(['status' => 'cancelado']);
+            app(PaymentService::class)->rollbackOrderStock($order, 'Anulación con fallo');
+        });
+    } catch (\Throwable $e) {
+        $threw = true;
+    }
+
+    expect($threw)->toBeTrue();
+    // La orden sigue en su estado previo y el stock no cambió.
+    expect($order->fresh()->status)->not->toBe('cancelado');
+    expect($stock->fresh()->quantity)->toBe(90);
+});

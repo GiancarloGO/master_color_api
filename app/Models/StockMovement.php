@@ -15,6 +15,7 @@ class StockMovement extends Model
         'movement_type',
         'reason',
         'user_id',
+        'order_id',
         'voucher_number',
         'canceled_at'
     ];
@@ -29,6 +30,14 @@ class StockMovement extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Orden de venta asociada (movimientos de tipo VENTA y su anulación).
+     */
+    public function order(): BelongsTo
+    {
+        return $this->belongsTo(Order::class);
     }
 
     public function details(): HasMany

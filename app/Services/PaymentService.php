@@ -855,9 +855,18 @@ class PaymentService
     {
         // Buscar TODOS los movimientos de salida activos asociados a esta orden.
         // Puede haber más de uno si en algún momento se duplicó el descuento.
-        $stockMovements = \App\Models\StockMovement::where('voucher_number', 'LIKE', "VENTA-{$order->id}-%")
-            ->where('movement_type', 'salida')
+        // Se usa la FK order_id (robusta); el patrón de voucher se mantiene como
+        // respaldo para movimientos legados que aún no tuvieran order_id backfilled.
+        // lockForUpdate serializa anulaciones concurrentes de la misma orden:
+        // evita que dos peticiones simultáneas creen dos movimientos de reverso.
+        // Todos los invocadores ejecutan dentro de una transacción.
+        $stockMovements = \App\Models\StockMovement::where('movement_type', 'salida')
             ->whereNull('canceled_at')
+            ->where(function ($q) use ($order) {
+                $q->where('order_id', $order->id)
+                    ->orWhere('voucher_number', 'LIKE', "VENTA-{$order->id}-%");
+            })
+            ->lockForUpdate()
             ->get();
 
         if ($stockMovements->isEmpty()) {

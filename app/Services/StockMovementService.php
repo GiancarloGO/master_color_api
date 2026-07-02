@@ -197,7 +197,8 @@ class StockMovementService
                 'movement_type' => $reverseType,
                 'reason' => "ANULACIÓN del movimiento #{$movement->id} - {$movement->reason}",
                 'voucher_number' => "ANUL-{$movement->id}-" . now()->format('YmdHis'),
-                'user_id' => Auth::id()
+                'user_id' => Auth::id(),
+                'order_id' => $movement->order_id, // Trazabilidad: hereda la orden del movimiento original
             ]);
 
             // Crear detalles del movimiento de cancelación (mismos productos, mismas cantidades)
@@ -244,7 +245,7 @@ class StockMovementService
         return DB::transaction(function () use ($order) {
             // Idempotencia: si ya existe un movimiento de salida activo para esta orden,
             // no volver a descontar (MercadoPago reenvía webhooks 'approved' varias veces).
-            $existing = StockMovement::where('voucher_number', 'LIKE', "VENTA-{$order->id}-%")
+            $existing = StockMovement::where('order_id', $order->id)
                 ->where('movement_type', 'salida')
                 ->whereNull('canceled_at')
                 ->first();
@@ -263,7 +264,8 @@ class StockMovementService
                 'movement_type' => 'salida',
                 'reason' => "VENTA - Orden #{$order->id} - Cliente: {$order->client->name}",
                 'voucher_number' => "VENTA-{$order->id}-" . now()->format('YmdHis'),
-                'user_id' => $order->user_id ?? 1 // Usuario del sistema si no hay usuario asignado
+                'user_id' => $order->user_id ?? 1, // Usuario del sistema si no hay usuario asignado
+                'order_id' => $order->id,
             ]);
 
             // Procesar cada producto de la orden
