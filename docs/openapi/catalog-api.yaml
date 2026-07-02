@@ -1,0 +1,278 @@
+openapi: 3.1.0
+info:
+  title: MasterColor — API de Catálogo (Categorías)
+  version: 0.1.0
+  description: >
+    Contrato de la API de **catálogo administrativo** para la gestión de
+    **categorías de productos** desde el panel web. Endpoints protegidos por el
+    guard `users` (staff) con rol administrador (`admin.only`).
+
+    Todas las respuestas usan el envelope estándar del backend:
+    `{ success, message, status, data, errors }`.
+
+    Estado: implementado en el backend.
+  contact:
+    name: Equipo MasterColor
+
+servers:
+  - url: http://localhost:8000/api
+    description: Local
+  - url: https://api.mastercolor.example/api
+    description: Producción (placeholder)
+
+tags:
+  - name: Catálogo · Categorías
+    description: >
+      Gestión de categorías de productos (CRUD). Las categorías son una entidad
+      de primera clase; los productos las referencian mediante `category_id`.
+      Se conserva el campo string `category` (slug) por compatibilidad.
+
+security:
+  - staffAuth: []
+
+paths:
+  /categories:
+    get:
+      tags: [Catálogo · Categorías]
+      summary: Listar categorías
+      description: Devuelve todas las categorías ordenadas por nombre, con el conteo de productos asociados.
+      security: [{ staffAuth: [] }]
+      responses:
+        '200':
+          description: Lista de categorías.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Category' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Catálogo · Categorías]
+      summary: Crear categoría
+      description: >
+        Registra una nueva categoría de forma manual. El `slug` se genera
+        automáticamente a partir del nombre y se garantiza único.
+      security: [{ staffAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CategoryInput' }
+            example: { name: 'Escáneres', active: true }
+      responses:
+        '201':
+          description: Categoría creada.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Category' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+
+  /categories/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdPath'
+    get:
+      tags: [Catálogo · Categorías]
+      summary: Detalle de categoría
+      security: [{ staffAuth: [] }]
+      responses:
+        '200':
+          description: Detalle de la categoría.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Category' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Catálogo · Categorías]
+      summary: Actualizar categoría
+      description: >
+        Actualiza el nombre y/o el estado de una categoría. Si se envía `name`,
+        el `slug` se regenera. Ambos campos son opcionales (actualización parcial).
+      security: [{ staffAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CategoryUpdateInput' }
+            example: { name: 'Escáneres profesionales', active: false }
+      responses:
+        '200':
+          description: Categoría actualizada.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { $ref: '#/components/schemas/Category' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      tags: [Catálogo · Categorías]
+      summary: Eliminar categoría
+      description: >
+        Elimina (soft delete) una categoría. **No se permite** si tiene productos
+        asociados; en ese caso devuelve `409 Conflict`.
+      security: [{ staffAuth: [] }]
+      responses:
+        '200':
+          description: Categoría eliminada.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiSuccess'
+                  - type: object
+                    properties:
+                      data: { nullable: true, example: null }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+components:
+  securitySchemes:
+    staffAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT del guard `users` (staff/administrador). Obtenido en `/auth/login`.
+
+  parameters:
+    IdPath:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+
+  responses:
+    Unauthorized:
+      description: No autenticado (token ausente o inválido).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+          example: { success: false, message: 'No autenticado', status: 401, data: [], errors: null }
+    Forbidden:
+      description: Sin permisos para esta acción (se requiere rol administrador).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+          example: { success: false, message: 'No autorizado', status: 403, data: [], errors: null }
+    NotFound:
+      description: Categoría no encontrada.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+          example: { success: false, message: 'Recurso no encontrado', status: 404, data: [], errors: null }
+    Conflict:
+      description: La categoría tiene productos asociados y no puede eliminarse.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiError' }
+          example: { success: false, message: 'No se puede eliminar la categoría porque tiene 14 producto(s) asociado(s).', status: 409, data: [], errors: null }
+    ValidationError:
+      description: Error de validación.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ValidationError' }
+          example:
+            success: false
+            message: 'Validation errors'
+            data: null
+            errors:
+              name: ['Ya existe una categoría con ese nombre.']
+
+  schemas:
+    # ── Envelope estándar ──
+    ApiSuccess:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string, example: 'OK' }
+        status: { type: integer, example: 200 }
+        data: {}
+        errors: { nullable: true }
+    ApiError:
+      type: object
+      properties:
+        success: { type: boolean, example: false }
+        message: { type: string }
+        status: { type: integer }
+        data: { type: array, items: {}, example: [] }
+        errors: { nullable: true }
+    ValidationError:
+      type: object
+      properties:
+        success: { type: boolean, example: false }
+        message: { type: string, example: 'Validation errors' }
+        data: { nullable: true }
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string }
+
+    # ── Categorías ──
+    Category:
+      type: object
+      description: Categoría de producto.
+      properties:
+        id: { type: integer, example: 1 }
+        name: { type: string, example: 'Impresoras' }
+        slug: { type: string, example: 'impresoras' }
+        active: { type: boolean, example: true }
+        products_count:
+          type: integer
+          nullable: true
+          description: Número de productos asociados. Presente solo cuando el endpoint lo calcula (index/show).
+          example: 14
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    CategoryInput:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          description: Nombre único de la categoría.
+          example: 'Escáneres'
+        active:
+          type: boolean
+          default: true
+          description: Estado de la categoría. Por defecto activa.
+          example: true
+    CategoryUpdateInput:
+      type: object
+      description: Actualización parcial. Todos los campos son opcionales.
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          description: Nuevo nombre único de la categoría (regenera el slug).
+          example: 'Escáneres profesionales'
+        active:
+          type: boolean
+          example: false

@@ -20,6 +20,7 @@ class Product extends Model
         'brand',
         'description',
         'category',
+        'category_id',
         'presentation',
         'unidad',
         'default_warranty_months',
@@ -41,6 +42,17 @@ class Product extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Get the category that owns the product.
+     *
+     * Se nombra `productCategory` (no `category`) para no colisionar con la
+     * columna string legada `category`, que se conserva por compatibilidad.
+     */
+    public function productCategory(): BelongsTo
+    {
+        return $this->belongsTo(Category::class, 'category_id');
     }
 
     /**

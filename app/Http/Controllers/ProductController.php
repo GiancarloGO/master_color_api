@@ -23,7 +23,7 @@ class ProductController extends Controller
     public function index()
     {
         try {
-            $products = Product::all();
+            $products = Product::with(['stock', 'productCategory'])->get();
             return ApiResponseClass::sendResponse(
                 ProductResource::collection($products),
                 'Lista de productos',
@@ -41,7 +41,7 @@ class ProductController extends Controller
     public function publicIndex()
     {
         try {
-            $products = Product::with('stock')->get();
+            $products = Product::with(['stock', 'productCategory'])->get();
             return ApiResponseClass::sendResponse(
                 ProductResource::collection($products),
                 'Lista pública de productos con stock',

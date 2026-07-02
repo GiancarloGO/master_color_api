@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Category;
 use App\Models\Product;
 use App\Http\Requests\ProductStoreRequest;
 use App\Http\Requests\ProductUpdateRequest;
@@ -19,10 +20,33 @@ class ProductService
         private StockMovementService $stockMovementService
     ) {}
 
+    /**
+     * Resuelve el id de categoría a partir del slug/nombre enviado en `category`.
+     * Si la categoría no existe todavía, la crea (soporta alta al vuelo).
+     */
+    private function resolveCategoryId(?string $categoryValue): ?int
+    {
+        if ($categoryValue === null || trim($categoryValue) === '') {
+            return null;
+        }
+
+        $slug = \Illuminate\Support\Str::slug($categoryValue);
+        if ($slug === '') {
+            return null;
+        }
+
+        $category = Category::firstOrCreate(
+            ['slug' => $slug],
+            ['name' => \Illuminate\Support\Str::title(str_replace('-', ' ', $slug)), 'active' => true]
+        );
+
+        return $category->id;
+    }
+
     public function getAllProducts(int $perPage = 15): LengthAwarePaginator
     {
         return Cache::remember('products_paginated_' . $perPage . '_' . request('page', 1), 300, function () use ($perPage) {
-            return Product::with(['user', 'stock'])
+            return Product::with(['user', 'stock', 'productCategory'])
                 ->orderBy('created_at', 'desc')
                 ->paginate($perPage);
         });
@@ -31,7 +55,7 @@ class ProductService
     public function getProductById(int $id): ?Product
     {
         return Cache::remember("product_{$id}", 600, function () use ($id) {
-            return Product::with(['user', 'stock'])->find($id);
+            return Product::with(['user', 'stock', 'productCategory'])->find($id);
         });
     }
 
@@ -63,6 +87,7 @@ class ProductService
             $productData = array_merge($validated, [
                 'image_url' => $imagePath,
                 'user_id' => Auth::id(),
+                'category_id' => $this->resolveCategoryId($validated['category'] ?? null),
             ]);
 
             // Remove stock fields and image from product data
@@ -92,7 +117,7 @@ class ProductService
             
             DB::commit();
             
-            return $product->load(['user', 'stock']);
+            return $product->load(['user', 'stock', 'productCategory']);
             
         } catch (\Exception $e) {
             DB::rollBack();
@@ -142,6 +167,10 @@ class ProductService
 
             unset($validated['image']);
 
+            if (array_key_exists('category', $validated)) {
+                $validated['category_id'] = $this->resolveCategoryId($validated['category']);
+            }
+
             $product->update($validated);
 
             // Update stock if stock data provided
@@ -153,7 +182,7 @@ class ProductService
             
             DB::commit();
             
-            return $product->refresh()->load(['user', 'stock']);
+            return $product->refresh()->load(['user', 'stock', 'productCategory']);
             
         } catch (\Exception $e) {
             DB::rollBack();
@@ -195,7 +224,7 @@ class ProductService
 
     public function searchProducts(string $query, int $perPage = 15): LengthAwarePaginator
     {
-        return Product::with(['user', 'stock'])
+        return Product::with(['user', 'stock', 'productCategory'])
             ->where(function ($q) use ($query) {
                 $q->where('name', 'like', "%{$query}%")
                   ->orWhere('sku', 'like', "%{$query}%")
@@ -210,7 +239,7 @@ class ProductService
     public function getProductsByCategory(string $category, int $perPage = 15): LengthAwarePaginator
     {
         return Cache::remember("products_category_{$category}_{$perPage}_" . request('page', 1), 300, function () use ($category, $perPage) {
-            return Product::with(['user', 'stock'])
+            return Product::with(['user', 'stock', 'productCategory'])
                 ->where('category', $category)
                 ->orderBy('created_at', 'desc')
                 ->paginate($perPage);

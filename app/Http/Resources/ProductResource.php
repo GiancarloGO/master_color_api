@@ -24,6 +24,8 @@ class ProductResource extends JsonResource
             'description' => $this->description,
             'presentation' => $this->presentation,
             'category' => $this->category,
+            'category_id' => $this->category_id,
+            'category_name' => optional($this->productCategory)->name,
             'unidad' => $this->unidad,
             'default_warranty_months' => (int) $this->default_warranty_months,
             'user_id' => $this->user_id,

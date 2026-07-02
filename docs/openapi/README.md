@@ -1,8 +1,13 @@
-# API de Soporte Técnico — Contrato OpenAPI
+# Contratos OpenAPI — MasterColor
 
-`support-api.yaml` es el **contrato de diseño (Sprint 0)** de la API que consumirá la
-app móvil Flutter de soporte técnico. Es la fuente de verdad: primero se acuerda aquí,
-luego se implementa en el backend Laravel.
+Este directorio contiene los contratos OpenAPI del backend:
+
+- **`support-api.yaml`** — API que consume la app móvil Flutter de soporte técnico
+  (unidades, garantías, tickets). Contrato de diseño (Sprint 0): es la fuente de
+  verdad; primero se acuerda aquí, luego se implementa en el backend Laravel.
+- **`catalog-api.yaml`** — API de catálogo administrativo (panel web). Documenta el
+  CRUD de **categorías** de productos (`/categories`), protegido por `staffAuth`
+  con rol administrador. Implementado en el backend.
 
 ## Previsualizar
 

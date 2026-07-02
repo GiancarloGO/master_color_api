@@ -13,6 +13,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ClientCartController;
 use App\Http\Controllers\DocumentLookupController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\StockMovementController;
 use App\Http\Controllers\WebhookController;
 use Illuminate\Support\Facades\Route;
@@ -191,6 +192,7 @@ Route::prefix('products')->group(function () {
 
 Route::middleware(['jwt.auth', 'check.token.version', 'admin.only'])->group(function () {
     Route::apiResource('products', ProductController::class);
+    Route::apiResource('categories', CategoryController::class);
 });
 
 /*
