@@ -10,3 +10,6 @@ Artisan::command('inspire', function () {
 
 // Recordatorios push de visitas programadas (cita en los próximos 60 min).
 Schedule::command('support:visit-reminders')->everyFiveMinutes();
+
+// Purga diaria de logs en BD (audit_logs / chat_logs) según su retención.
+Schedule::command('logs:prune')->dailyAt('03:30');

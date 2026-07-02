@@ -18,22 +18,12 @@ class ChatbotController extends Controller
         $history   = $data['history'] ?? [];
         $sessionId = $data['session_id'];
 
-        ChatLog::create([
-            'session_id' => $sessionId,
-            'role'       => 'user',
-            'message'    => $userMsg,
-            'ip_address' => $request->ip(),
-        ]);
+        $this->logConversation($sessionId, 'user', $userMsg, $request->ip());
 
         try {
             $reply = $this->chatbot->reply($history, $userMsg);
 
-            ChatLog::create([
-                'session_id' => $sessionId,
-                'role'       => 'assistant',
-                'message'    => $reply,
-                'ip_address' => $request->ip(),
-            ]);
+            $this->logConversation($sessionId, 'assistant', $reply, $request->ip());
 
             return response()->json(['success' => true, 'reply' => $reply]);
         } catch (\Exception $e) {
@@ -43,6 +33,30 @@ class ChatbotController extends Controller
                 'success' => false,
                 'reply'   => 'Lo siento, el asistente no está disponible en este momento. Por favor intenta en unos minutos o contáctanos directamente.',
             ], 503);
+        }
+    }
+
+    /**
+     * Registra un mensaje del chatbot. Siempre en el canal de archivo `chatbot`;
+     * en BD (`chat_logs`) solo si CHATBOT_PERSIST_LOGS está activo, para no
+     * saturar la base de datos con el tráfico público del asistente.
+     */
+    private function logConversation(string $sessionId, string $role, string $message, ?string $ip): void
+    {
+        Log::channel('chatbot')->info('chat', [
+            'session_id' => $sessionId,
+            'role'       => $role,
+            'message'    => $message,
+            'ip_address' => $ip,
+        ]);
+
+        if (config('chatbot.persist_logs')) {
+            ChatLog::create([
+                'session_id' => $sessionId,
+                'role'       => $role,
+                'message'    => $message,
+                'ip_address' => $ip,
+            ]);
         }
     }
 }

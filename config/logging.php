@@ -73,6 +73,16 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Canal dedicado para las conversaciones del chatbot. Reemplaza la
+        // escritura por defecto a la tabla `chat_logs` (ver config/chatbot.php).
+        'chatbot' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/chatbot.log'),
+            'level' => 'info',
+            'days' => env('CHATBOT_LOG_FILE_DAYS', 14),
+            'replace_placeholders' => true,
+        ],
+
         'slack' => [
             'driver' => 'slack',
             'url' => env('LOG_SLACK_WEBHOOK_URL'),

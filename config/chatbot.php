@@ -5,6 +5,14 @@ return [
     'max_products' => (int) env('CHATBOT_MAX_PRODUCTS', 50),
     'max_history'  => 6,
 
+    // Persistir cada mensaje del chatbot en la tabla `chat_logs`. Desactivado por
+    // defecto para evitar saturar la base de datos con tráfico público; las
+    // conversaciones se registran igualmente en el canal de log `chatbot` (archivo).
+    'persist_logs' => filter_var(env('CHATBOT_PERSIST_LOGS', false), FILTER_VALIDATE_BOOLEAN),
+
+    // Días de retención de `chat_logs` en BD cuando la persistencia está activa.
+    'log_retention_days' => (int) env('CHATBOT_LOG_RETENTION_DAYS', 30),
+
     'providers' => [
         'ollama' => [
             'url'     => env('OLLAMA_URL', 'http://localhost:11434'),
