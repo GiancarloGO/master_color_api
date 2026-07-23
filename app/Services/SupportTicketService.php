@@ -48,6 +48,7 @@ class SupportTicketService
     public function __construct(
         private AuditService $audit,
         private FileUploadService $files,
+        private StockMovementService $stock,
     ) {}
 
     public static function isValidTransition(string $from, string $to): bool
@@ -215,6 +216,13 @@ class SupportTicketService
         $from = $ticket->status;
 
         $fresh = DB::transaction(function () use ($ticket, $newStatus, $actor, $note) {
+            // Al cancelar, devolver al inventario los repuestos ya consumidos.
+            // Se conservan los TicketPart como registro histórico; solo se revierte
+            // el movimiento de stock (crea la 'entrada' compensatoria e idempotente).
+            if ($newStatus === 'cancelado') {
+                $this->restorePartsStock($ticket);
+            }
+
             $this->applyStatus($ticket, $newStatus, $actor, $note);
 
             if ($actor instanceof User) {
@@ -360,6 +368,26 @@ class SupportTicketService
     {
         if (self::isTerminal($ticket->status)) {
             throw new DomainException("No se puede {$action} un ticket en estado '{$ticket->status}'");
+        }
+    }
+
+    /**
+     * Revierte el descuento de inventario de todos los repuestos del ticket.
+     * Se usa al cancelar el ticket: cada movimiento 'salida' activo genera su
+     * 'entrada' compensatoria. Idempotente: omite los ya cancelados.
+     * Debe ejecutarse dentro de una transacción.
+     */
+    private function restorePartsStock(SupportTicket $ticket): void
+    {
+        foreach ($ticket->parts()->with('stockMovement')->get() as $part) {
+            if (!$part->stock_movement_id) {
+                continue;
+            }
+
+            $movement = $part->stockMovement;
+            if ($movement && !$movement->canceled_at) {
+                $this->stock->cancelMovement($movement);
+            }
         }
     }
 
