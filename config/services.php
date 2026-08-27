@@ -40,8 +40,10 @@ return [
     ],
 
     'fcm' => [
-        // Server key (FCM legacy HTTP API). Si está vacío, el push se omite con gracia.
-        'key' => env('FCM_SERVER_KEY'),
+        // FCM HTTP v1 (Firebase Admin). Si falta project_id o el archivo de
+        // credenciales, el push se omite con gracia (ver PushNotificationService).
+        'project_id' => env('FCM_PROJECT_ID'),
+        'credentials' => env('FCM_CREDENTIALS_PATH', storage_path('app/firebase/service-account.json')),
     ],
 
 ];

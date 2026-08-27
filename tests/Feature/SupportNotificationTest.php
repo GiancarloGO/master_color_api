@@ -12,6 +12,7 @@ use App\Services\PushNotificationService;
 use App\Services\SupportTicketService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Mail;
 
 uses(RefreshDatabase::class);
@@ -32,7 +33,7 @@ function makeTicket(array $seed): SupportTicket
 it('el cliente registra un token de dispositivo', function () {
     $seed = supportSeed();
 
-    $this->withHeader('Authorization', 'Bearer ' . clientToken($seed['client']))
+    $this->withHeader('Authorization', 'Bearer '.clientToken($seed['client']))
         ->postJson('/api/client/devices', ['token' => 'fcm-abc-123', 'platform' => 'android'])
         ->assertOk();
 
@@ -51,7 +52,7 @@ it('reasigna un token existente al nuevo dueño sin duplicar', function () {
         'tokenable_type' => User::class, 'tokenable_id' => $seed['user']->id,
     ]);
 
-    $this->withHeader('Authorization', 'Bearer ' . clientToken($seed['client']))
+    $this->withHeader('Authorization', 'Bearer '.clientToken($seed['client']))
         ->postJson('/api/client/devices', ['token' => 'fcm-shared', 'platform' => 'android'])
         ->assertOk();
 
@@ -67,7 +68,7 @@ it('el cliente elimina su token', function () {
     $seed = supportSeed();
     $seed['client']->deviceTokens()->create(['token' => 'fcm-del', 'platform' => 'android']);
 
-    $this->withHeader('Authorization', 'Bearer ' . clientToken($seed['client']))
+    $this->withHeader('Authorization', 'Bearer '.clientToken($seed['client']))
         ->deleteJson('/api/client/devices/fcm-del')
         ->assertOk();
 
@@ -77,7 +78,7 @@ it('el cliente elimina su token', function () {
 it('el staff registra un token de dispositivo', function () {
     $seed = supportSeed();
 
-    $this->withHeader('Authorization', 'Bearer ' . staffToken($seed['user']))
+    $this->withHeader('Authorization', 'Bearer '.staffToken($seed['user']))
         ->postJson('/api/support/devices', ['token' => 'fcm-staff', 'platform' => 'ios'])
         ->assertOk();
 
@@ -142,13 +143,52 @@ it('notifica al técnico asignado cuando el cliente responde', function () {
 // ───────────────────────── PushNotificationService robusto ─────────────────────────
 
 it('el servicio de push no falla sin configuración FCM ni tokens', function () {
-    config(['services.fcm.key' => null]);
+    config(['services.fcm.project_id' => null]);
     $service = app(PushNotificationService::class);
 
     $service->sendToTokens([], 'T', 'B');
     $service->sendToTokens(['tok1', 'tok2'], 'T', 'B');
 
     expect(true)->toBeTrue(); // no se lanzó excepción
+});
+
+it('el servicio de push no falla si hay project_id pero falta el archivo de credenciales', function () {
+    config([
+        'services.fcm.project_id' => 'mastercolor-test',
+        'services.fcm.credentials' => '/ruta/inexistente/service-account.json',
+    ]);
+    $service = app(PushNotificationService::class);
+
+    $service->sendToTokens(['tok1'], 'T', 'B');
+
+    expect(true)->toBeTrue(); // no se lanzó excepción
+});
+
+it('envía el payload correcto a FCM HTTP v1 cuando está configurado', function () {
+    // El intercambio de credenciales (JWT/OAuth2 con Google) lo hace la
+    // librería `google/auth` con su propio cliente HTTP interno, fuera del
+    // alcance de `Http::fake()`. Se mockea `getAccessToken()` (protegido) y
+    // se prueba solo la llamada real a FCM, que sí pasa por el facade `Http`.
+    config(['services.fcm.project_id' => 'mastercolor-test']);
+
+    $service = Mockery::mock(PushNotificationService::class)->makePartial();
+    $service->shouldAllowMockingProtectedMethods();
+    $service->shouldReceive('getAccessToken')->once()->andReturn('fake-token');
+    app()->instance(PushNotificationService::class, $service);
+
+    Http::fake([
+        'fcm.googleapis.com/*' => Http::response(['name' => 'projects/mastercolor-test/messages/1'], 200),
+    ]);
+
+    app(PushNotificationService::class)->sendToTokens(['tok1'], 'Título', 'Cuerpo', ['ticket_id' => 5]);
+
+    Http::assertSent(function ($request) {
+        return str_contains($request->url(), 'fcm.googleapis.com/v1/projects/mastercolor-test/messages:send')
+            && $request['message']['token'] === 'tok1'
+            && $request['message']['notification']['title'] === 'Título'
+            && ((array) $request['message']['data'])['ticket_id'] === '5' // v1 exige strings
+            && $request->hasHeader('Authorization', 'Bearer fake-token');
+    });
 });
 
 it('renderiza el correo de cambio de estado sin errores', function () {

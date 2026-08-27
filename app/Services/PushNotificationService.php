@@ -2,18 +2,25 @@
 
 namespace App\Services;
 
+use Google\Auth\Credentials\ServiceAccountCredentials;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class PushNotificationService
 {
+    private const SCOPE = 'https://www.googleapis.com/auth/firebase.messaging';
+
+    private const TOKEN_CACHE_KEY = 'fcm_access_token';
+
     /**
      * Envía una notificación push a todos los dispositivos de un modelo
      * (Client o User) que tenga la relación `deviceTokens`.
      */
     public function sendToModel(Model $notifiable, string $title, string $body, array $data = []): void
     {
-        if (!method_exists($notifiable, 'deviceTokens')) {
+        if (! method_exists($notifiable, 'deviceTokens')) {
             return;
         }
 
@@ -23,8 +30,8 @@ class PushNotificationService
     }
 
     /**
-     * Envía a una lista de tokens FCM. Degrada con gracia si FCM no está
-     * configurado o no hay tokens (no lanza excepción).
+     * Envía a una lista de tokens FCM (HTTP v1). Degrada con gracia si FCM no
+     * está configurado o no hay tokens (no lanza excepción).
      *
      * @param  string[]  $tokens
      */
@@ -36,9 +43,9 @@ class PushNotificationService
             return;
         }
 
-        $serverKey = config('services.fcm.key');
+        $projectId = config('services.fcm.project_id');
 
-        if (empty($serverKey)) {
+        if (empty($projectId)) {
             Log::info('Push notification skipped: FCM not configured', [
                 'title' => $title,
                 'tokens' => count($tokens),
@@ -47,12 +54,18 @@ class PushNotificationService
             return;
         }
 
+        $accessToken = $this->getAccessToken();
+
+        if ($accessToken === null) {
+            return;
+        }
+
         foreach ($tokens as $token) {
             try {
-                $this->dispatchToFcm($serverKey, $token, $title, $body, $data);
+                $this->dispatchToFcm($projectId, $accessToken, $token, $title, $body, $data);
             } catch (\Throwable $e) {
                 Log::error('Push notification failed', [
-                    'token' => substr($token, 0, 12) . '...',
+                    'token' => substr($token, 0, 12).'...',
                     'error' => $e->getMessage(),
                 ]);
             }
@@ -60,45 +73,66 @@ class PushNotificationService
     }
 
     /**
-     * Llamada HTTP real a FCM (legacy HTTP API). Aislada para poder simularse en tests.
+     * Obtiene (y cachea) un access token OAuth2 para la API de FCM a partir
+     * del service account. `null` si no hay credenciales configuradas o
+     * son inválidas — en ese caso se registra el error una sola vez por TTL
+     * de caché en lugar de en cada envío.
      */
-    protected function dispatchToFcm(string $serverKey, string $token, string $title, string $body, array $data): void
+    protected function getAccessToken(): ?string
     {
-        $payload = [
-            'to' => $token,
-            'notification' => [
-                'title' => $title,
-                'body' => $body,
-            ],
-            'data' => $data,
-        ];
+        return Cache::remember(self::TOKEN_CACHE_KEY, 3000, function () {
+            $credentialsPath = config('services.fcm.credentials');
 
-        $curl = curl_init();
-        curl_setopt_array($curl, [
-            CURLOPT_URL => 'https://fcm.googleapis.com/fcm/send',
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_POST => true,
-            CURLOPT_TIMEOUT => 10,
-            CURLOPT_HTTPHEADER => [
-                'Authorization: key=' . $serverKey,
-                'Content-Type: application/json',
-            ],
-            CURLOPT_POSTFIELDS => json_encode($payload),
-        ]);
+            if (empty($credentialsPath) || ! is_readable($credentialsPath)) {
+                Log::info('Push notification skipped: FCM credentials file not found', [
+                    'path' => $credentialsPath,
+                ]);
 
-        $response = curl_exec($curl);
-        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
-        $curlError = curl_error($curl);
-        curl_close($curl);
+                return null;
+            }
 
-        if ($curlError) {
-            throw new \RuntimeException('CURL error: ' . $curlError);
-        }
+            try {
+                $credentials = new ServiceAccountCredentials(self::SCOPE, $credentialsPath);
+                $token = $credentials->fetchAuthToken();
 
-        if ($httpCode !== 200) {
-            Log::warning('FCM returned non-200', [
-                'http_code' => $httpCode,
-                'response' => substr((string) $response, 0, 300),
+                return $token['access_token'] ?? null;
+            } catch (\Throwable $e) {
+                Log::error('FCM: no se pudo obtener el access token', ['error' => $e->getMessage()]);
+
+                return null;
+            }
+        });
+    }
+
+    /**
+     * Llamada HTTP real a FCM (HTTP v1). Aislada para poder simularse en tests.
+     * En v1, todos los valores de `data` deben ser string.
+     */
+    protected function dispatchToFcm(string $projectId, string $accessToken, string $token, string $title, string $body, array $data): void
+    {
+        $response = Http::withToken($accessToken)
+            ->timeout(10)
+            ->post("https://fcm.googleapis.com/v1/projects/{$projectId}/messages:send", [
+                'message' => [
+                    'token' => $token,
+                    'notification' => [
+                        'title' => $title,
+                        'body' => $body,
+                    ],
+                    // FCM v1 exige que `data` sea un mapa (objeto) JSON, no una
+                    // lista — `(object)` fuerza `{}` incluso cuando $data está
+                    // vacío (un array vacío se serializaría como `[]` y FCM lo
+                    // rechaza con "Cannot bind a list to map for field 'data'").
+                    'data' => (object) array_map('strval', $data),
+                ],
+            ]);
+
+        if ($response->failed()) {
+            // Un 404/NOT_FOUND (token inválido/desregistrado) es esperable con
+            // el tiempo; se registra como warning, no como error crítico.
+            Log::warning('FCM returned an error', [
+                'http_code' => $response->status(),
+                'response' => substr($response->body(), 0, 300),
             ]);
         }
     }
