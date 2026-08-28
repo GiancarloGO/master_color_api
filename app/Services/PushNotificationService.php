@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\DeviceToken;
 use App\Models\PushNotification;
 use Google\Auth\Credentials\ServiceAccountCredentials;
 use Illuminate\Database\Eloquent\Model;
@@ -157,6 +158,27 @@ class PushNotificationService
                 'http_code' => $response->status(),
                 'response' => substr($response->body(), 0, 300),
             ]);
+
+            if ($this->isUnregistered($response)) {
+                // FCM confirma que el token ya no existe (reinstalación,
+                // desinstalación, rotación del Instance ID...): se borra para
+                // no seguir intentando contra él en cada envío futuro.
+                DeviceToken::where('token', $token)->delete();
+            }
         }
+    }
+
+    /**
+     * `true` si la respuesta de FCM indica que el token ya no está registrado
+     * (UNREGISTERED), a diferencia de otros 404 (proyecto/credenciales mal
+     * configurados) que no deben provocar el borrado del token.
+     */
+    protected function isUnregistered(\Illuminate\Http\Client\Response $response): bool
+    {
+        if ($response->status() !== 404) {
+            return false;
+        }
+
+        return $response->json('error.details.0.errorCode') === 'UNREGISTERED';
     }
 }
