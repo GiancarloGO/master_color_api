@@ -81,6 +81,14 @@ class Client extends Authenticatable implements JWTSubject
     }
 
     /**
+     * Historial in-app de notificaciones recibidas por el cliente.
+     */
+    public function notifications(): MorphMany
+    {
+        return $this->morphMany(PushNotification::class, 'notifiable')->latest('created_at');
+    }
+
+    /**
      * Get the identifier that will be stored in the subject claim of the JWT.
      *
      * @return mixed

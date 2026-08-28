@@ -129,4 +129,12 @@ class User extends Authenticatable implements JWTSubject
         return $this->morphMany(DeviceToken::class, 'tokenable');
     }
 
+    /**
+     * Historial in-app de notificaciones recibidas por el usuario.
+     */
+    public function notifications(): MorphMany
+    {
+        return $this->morphMany(PushNotification::class, 'notifiable')->latest('created_at');
+    }
+
 }

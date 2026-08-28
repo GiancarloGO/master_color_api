@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\PushNotification;
 use Google\Auth\Credentials\ServiceAccountCredentials;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
@@ -20,6 +21,8 @@ class PushNotificationService
      */
     public function sendToModel(Model $notifiable, string $title, string $body, array $data = []): void
     {
+        $this->persist($notifiable, $title, $body, $data);
+
         if (! method_exists($notifiable, 'deviceTokens')) {
             return;
         }
@@ -27,6 +30,26 @@ class PushNotificationService
         $tokens = $notifiable->deviceTokens()->pluck('token')->all();
 
         $this->sendToTokens($tokens, $title, $body, $data);
+    }
+
+    /**
+     * Guarda el historial in-app (centro de notificaciones), independiente de
+     * si el push por FCM llega o no al dispositivo.
+     */
+    protected function persist(Model $notifiable, string $title, string $body, array $data): void
+    {
+        try {
+            PushNotification::create([
+                'notifiable_type' => $notifiable->getMorphClass(),
+                'notifiable_id' => $notifiable->getKey(),
+                'type' => $data['type'] ?? null,
+                'title' => $title,
+                'body' => $body,
+                'data' => $data,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('No se pudo guardar la notificación in-app', ['error' => $e->getMessage()]);
+        }
     }
 
     /**

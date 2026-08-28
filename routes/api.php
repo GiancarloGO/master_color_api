@@ -31,6 +31,8 @@ use App\Http\Controllers\SupportTechnicianController;
 use App\Http\Controllers\SupportPartController;
 use App\Http\Controllers\SupportVisitController;
 use App\Http\Controllers\ClientProductController;
+use App\Http\Controllers\ClientNotificationController;
+use App\Http\Controllers\SupportNotificationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -412,4 +414,24 @@ Route::prefix('client/devices')->middleware([\App\Http\Middleware\ClientAuth::cl
 Route::prefix('support/devices')->middleware(['jwt.auth', 'check.token.version'])->group(function () {
     Route::post('/', [SupportDeviceController::class, 'store'])->name('support.devices.store');
     Route::delete('/{token}', [SupportDeviceController::class, 'destroy'])->name('support.devices.destroy');
+});
+
+/*
+|--------------------------------------------------------------------------
+| NOTIFICATIONS (CENTRO DE NOTIFICACIONES IN-APP)
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('client/notifications')->middleware([\App\Http\Middleware\ClientAuth::class])->group(function () {
+    Route::get('/', [ClientNotificationController::class, 'index'])->name('client.notifications.index');
+    Route::get('/unread-count', [ClientNotificationController::class, 'unreadCount'])->name('client.notifications.unread-count');
+    Route::post('/read-all', [ClientNotificationController::class, 'markAllRead'])->name('client.notifications.read-all');
+    Route::post('/{id}/read', [ClientNotificationController::class, 'markRead'])->whereNumber('id')->name('client.notifications.read');
+});
+
+Route::prefix('support/notifications')->middleware(['jwt.auth', 'check.token.version'])->group(function () {
+    Route::get('/', [SupportNotificationController::class, 'index'])->name('support.notifications.index');
+    Route::get('/unread-count', [SupportNotificationController::class, 'unreadCount'])->name('support.notifications.unread-count');
+    Route::post('/read-all', [SupportNotificationController::class, 'markAllRead'])->name('support.notifications.read-all');
+    Route::post('/{id}/read', [SupportNotificationController::class, 'markRead'])->whereNumber('id')->name('support.notifications.read');
 });

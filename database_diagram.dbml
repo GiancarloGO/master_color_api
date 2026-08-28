@@ -1,5 +1,13 @@
-// Master Color API Database Schema
-// Generated from Laravel migrations for dbdiagram.io
+// Master Color API — Database Schema
+// Generado desde las migraciones de Laravel (database/migrations) el 2026-08-27.
+// Pegar en https://dbdiagram.io
+//
+// No incluye tablas de infraestructura de Laravel sin valor de dominio:
+// cache, cache_locks, jobs, job_batches, failed_jobs, sessions.
+
+//////////////////////////////////////////////////////////////////////////
+// AUTENTICACIÓN Y USUARIOS
+//////////////////////////////////////////////////////////////////////////
 
 Table roles {
   id bigint [pk, increment]
@@ -19,6 +27,9 @@ Table users {
   token_version varchar [default: '0']
   role_id bigint [ref: > roles.id]
   is_active boolean [default: true]
+  specialties json [null, note: 'Categorías de ticket que atiende el técnico']
+  coverage_zones json [null, note: 'Distritos/zonas que cubre el técnico']
+  is_available boolean [default: true, note: 'Disponible para nuevas asignaciones de visita']
   dni varchar [unique]
   phone varchar [null]
   remember_token varchar [null]
@@ -27,21 +38,79 @@ Table users {
   deleted_at timestamp [null]
 }
 
+Table password_reset_tokens {
+  email varchar [pk]
+  token varchar
+  created_at timestamp [null]
+  Note: 'Reset de contraseña de staff (scaffold estándar de Laravel)'
+}
+
+Table password_resets {
+  email varchar [note: 'index, no unique']
+  token varchar
+  created_at timestamp [null]
+  Note: 'Segunda tabla de reset de contraseña de staff (2026-02-01), en paralelo a password_reset_tokens'
+}
+
+Table personal_access_tokens {
+  id bigint [pk, increment]
+  tokenable_type varchar [note: 'polimórfico Sanctum: App\\Models\\User o App\\Models\\Client']
+  tokenable_id bigint
+  name varchar
+  token varchar(64) [unique]
+  abilities text [null]
+  last_used_at timestamp [null]
+  expires_at timestamp [null]
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    (tokenable_type, tokenable_id)
+  }
+}
+
+Table device_tokens {
+  id bigint [pk, increment]
+  tokenable_type varchar [note: 'polimórfico: App\\Models\\User o App\\Models\\Client']
+  tokenable_id bigint
+  token varchar [unique]
+  platform varchar [note: "enum: android, ios"]
+  last_used_at timestamp [null]
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    (tokenable_type, tokenable_id)
+  }
+  Note: 'Tokens FCM para push notifications'
+}
+
+//////////////////////////////////////////////////////////////////////////
+// CLIENTES Y DIRECCIONES
+//////////////////////////////////////////////////////////////////////////
+
 Table clients {
   id bigint [pk, increment]
   name varchar
   email varchar
   password varchar
-  client_type enum('individual', 'company')
+  client_type varchar [note: "enum: individual, company"]
   identity_document varchar [unique]
-  document_type enum('DNI', 'RUC', 'CE', 'PASAPORTE')
+  document_type varchar [note: "enum: DNI, RUC, CE, PASAPORTE"]
   email_verified_at timestamp [null]
+  is_test boolean [default: false, note: 'Cliente de prueba: permite pago simulado sin MercadoPago']
   verification_token varchar [null]
   token_version varchar [default: '0']
   phone varchar [null]
   created_at timestamp
   updated_at timestamp
   deleted_at timestamp [null]
+}
+
+Table client_password_resets {
+  email varchar [note: 'index, no unique']
+  token varchar
+  created_at timestamp [null]
 }
 
 Table addresses {
@@ -53,10 +122,30 @@ Table addresses {
   department varchar
   postal_code varchar
   reference varchar
+  latitude decimal(10,7) [null]
+  longitude decimal(10,7) [null]
   is_main boolean [default: false]
   created_at timestamp
   updated_at timestamp
   deleted_at timestamp [null]
+}
+
+//////////////////////////////////////////////////////////////////////////
+// CATÁLOGO E INVENTARIO
+//////////////////////////////////////////////////////////////////////////
+
+Table categories {
+  id bigint [pk, increment]
+  name varchar [unique]
+  slug varchar [unique]
+  active boolean [default: true]
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null]
+
+  indexes {
+    active
+  }
 }
 
 Table products {
@@ -68,17 +157,27 @@ Table products {
   brand varchar
   description text
   presentation varchar
-  category varchar
+  category varchar [note: 'Legado (slug), se mantiene por compatibilidad con consumidores existentes']
   unidad varchar
+  default_warranty_months smallint [default: 0, note: '0 = sin garantía formal']
+  category_id bigint [ref: > categories.id, null]
   user_id bigint [ref: > users.id]
   created_at timestamp
   updated_at timestamp
   deleted_at timestamp [null]
+
+  indexes {
+    sku
+    barcode
+    category
+    brand
+    (name, category)
+  }
 }
 
 Table stocks {
   id bigint [pk, increment]
-  product_id bigint [unique, ref: - products.id]
+  product_id bigint [ref: - products.id, unique]
   quantity bigint [default: 0]
   min_stock bigint [default: 0]
   max_stock bigint [default: 0]
@@ -91,28 +190,37 @@ Table stocks {
 
 Table stock_movements {
   id bigint [pk, increment]
-  movement_type enum('entrada', 'salida', 'ajuste', 'devolucion')
+  movement_type varchar [note: "enum: entrada, salida, ajuste, devolucion"]
   reason varchar
   user_id bigint [ref: > users.id]
+  order_id bigint [ref: > orders.id, null, note: 'Orden de venta origen del movimiento (reemplaza el matching por voucher_number)']
   voucher_number varchar [null]
   canceled_at timestamp [null]
   created_at timestamp
   updated_at timestamp
   deleted_at timestamp [null]
+
+  indexes {
+    order_id
+  }
 }
 
 Table details_movements {
   id bigint [pk, increment]
   stock_movement_id bigint [ref: > stock_movements.id]
   stock_id bigint [ref: > stocks.id]
-  quantity integer
+  quantity int
   unit_price decimal(10,2) [null]
-  previous_stock integer
-  new_stock integer
+  previous_stock int
+  new_stock int
   created_at timestamp
   updated_at timestamp
   deleted_at timestamp [null]
 }
+
+//////////////////////////////////////////////////////////////////////////
+// VENTAS: ÓRDENES Y PAGOS
+//////////////////////////////////////////////////////////////////////////
 
 Table orders {
   id bigint [pk, increment]
@@ -122,7 +230,7 @@ Table orders {
   subtotal decimal(10,2)
   shipping_cost decimal(10,2) [default: 0]
   discount decimal(10,2) [default: 0]
-  status enum('pendiente_pago', 'pendiente', 'confirmado', 'procesando', 'enviado', 'entregado', 'cancelado', 'pago_fallido') [default: 'pendiente_pago']
+  status varchar [default: 'pendiente_pago', note: "enum: pendiente_pago, pendiente, confirmado, procesando, enviado, entregado, cancelado, pago_fallido"]
   codigo_payment varchar [null]
   observations text [null]
   created_at timestamp
@@ -134,7 +242,7 @@ Table order_details {
   id bigint [pk, increment]
   product_id bigint [ref: > products.id]
   order_id bigint [ref: > orders.id]
-  quantity integer
+  quantity int
   unit_price decimal(10,2)
   subtotal decimal(10,2)
   created_at timestamp
@@ -145,17 +253,238 @@ Table order_details {
 Table payments {
   id bigint [pk, increment]
   order_id bigint [ref: > orders.id]
-  payment_method enum('Efectivo', 'Tarjeta', 'Yape', 'Plin', 'TC', 'MercadoPago') [default: 'MercadoPago']
+  payment_method varchar [default: 'MercadoPago', note: "enum: Efectivo, Tarjeta, Yape, Plin, TC, MercadoPago"]
   payment_code varchar [null]
   amount decimal(10,2)
   currency varchar(3) [default: 'PEN']
-  status enum('pending', 'approved', 'rejected', 'cancelled', 'refunded') [default: 'pending']
-  external_id varchar [null]
-  external_response json [null]
-  document_type enum('Boleta', 'Factura', 'Ticket', 'NC') [default: 'Ticket']
+  status varchar [default: 'pending', note: "enum: pending, approved, rejected, cancelled, refunded"]
+  external_id varchar [null, note: 'MercadoPago payment ID']
+  external_response json [null, note: 'Respuesta completa de MercadoPago']
+  document_type varchar [default: 'Ticket', note: "enum: Boleta, Factura, Ticket, NC"]
   nc_reference varchar [null]
   observations text [null]
   created_at timestamp
   updated_at timestamp
   deleted_at timestamp [null]
+}
+
+//////////////////////////////////////////////////////////////////////////
+// GARANTÍA: UNIDADES VENDIDAS
+//////////////////////////////////////////////////////////////////////////
+
+Table sold_units {
+  id bigint [pk, increment]
+  client_id bigint [ref: > clients.id]
+  product_id bigint [ref: > products.id]
+  order_id bigint [ref: > orders.id, null, note: 'Origen: orden online']
+  order_detail_id bigint [ref: > order_details.id, null]
+  serial_number varchar [null]
+  purchase_date date
+  warranty_months smallint [default: 0]
+  warranty_expires_at date [null]
+  registration_source varchar [default: 'order', note: "enum: order, manual"]
+  proof_file_path varchar [null]
+  status varchar [default: 'activa', note: "enum: activa, en_servicio, baja"]
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null]
+
+  indexes {
+    serial_number
+    (client_id, status)
+  }
+}
+
+//////////////////////////////////////////////////////////////////////////
+// SOPORTE TÉCNICO (TICKETS)
+//////////////////////////////////////////////////////////////////////////
+
+Table support_tickets {
+  id bigint [pk, increment]
+  code varchar [unique]
+  client_id bigint [ref: > clients.id]
+  sold_unit_id bigint [ref: > sold_units.id, null]
+  product_id bigint [ref: > products.id, null]
+  category varchar [note: "enum: garantia, instalacion, falla, consulta, otro"]
+  priority varchar [default: 'media', note: "enum: baja, media, alta, urgente"]
+  subject varchar(150)
+  description text
+  status varchar [default: 'abierto', note: "enum: abierto, asignado, en_proceso, en_espera_cliente, en_espera_aprobacion, resuelto, cerrado, cancelado"]
+  assigned_user_id bigint [ref: > users.id, null]
+  channel varchar [default: 'app', note: "enum: app, web, telefono"]
+  service_type varchar [default: 'remoto', note: "enum: remoto, domicilio, taller"]
+  service_address_id bigint [ref: > addresses.id, null, note: 'Solo cuando service_type = domicilio']
+  scheduled_at timestamp [null, note: 'Programación de la visita del técnico']
+  scheduled_window_minutes smallint [null]
+  reminder_sent_at timestamp [null]
+  is_warranty_covered boolean [null]
+  sla_due_at timestamp [null]
+  first_response_at timestamp [null]
+  resolved_at timestamp [null]
+  closed_at timestamp [null]
+  rating tinyint [null]
+  rating_comment text [null]
+  diagnosis text [null]
+  parts_used text [null]
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null]
+
+  indexes {
+    (status, priority)
+    (client_id, status)
+    assigned_user_id
+  }
+}
+
+Table ticket_messages {
+  id bigint [pk, increment]
+  ticket_id bigint [ref: > support_tickets.id]
+  author_type varchar [note: "enum: client, user"]
+  author_id bigint [note: 'polimórfico simple: clients.id o users.id según author_type']
+  author_name varchar [note: 'snapshot del nombre del autor']
+  body text
+  is_internal boolean [default: false, note: 'Nota interna de staff, no visible para el cliente']
+  read_at timestamp [null]
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null]
+
+  indexes {
+    (ticket_id, is_internal)
+  }
+}
+
+Table ticket_attachments {
+  id bigint [pk, increment]
+  ticket_id bigint [ref: > support_tickets.id]
+  ticket_message_id bigint [ref: > ticket_messages.id, null]
+  file_path varchar
+  file_type varchar [null]
+  original_name varchar [null]
+  uploaded_by_type varchar [note: "enum: client, user"]
+  uploaded_by_id bigint [note: 'polimórfico simple según uploaded_by_type']
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null]
+}
+
+Table ticket_status_history {
+  id bigint [pk, increment]
+  ticket_id bigint [ref: > support_tickets.id]
+  from_status varchar [null]
+  to_status varchar
+  changed_by_type varchar [note: "enum: client, user, system"]
+  changed_by_id bigint [null, note: 'polimórfico simple según changed_by_type']
+  changed_by_name varchar
+  note text [null]
+  created_at timestamp
+  updated_at timestamp
+
+  indexes {
+    ticket_id
+  }
+}
+
+Table ticket_parts {
+  id bigint [pk, increment]
+  ticket_id bigint [ref: > support_tickets.id]
+  stock_id bigint [ref: > stocks.id]
+  quantity int [note: 'unsigned']
+  unit_cost decimal(10,2) [null]
+  stock_movement_id bigint [ref: > stock_movements.id, null, note: 'Movimiento de salida generado; permite revertir si se elimina el repuesto']
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null]
+
+  indexes {
+    ticket_id
+  }
+}
+
+Table ticket_quotes {
+  id bigint [pk, increment]
+  ticket_id bigint [ref: > support_tickets.id]
+  labor_cost decimal(10,2) [default: 0]
+  parts_cost decimal(10,2) [default: 0]
+  total decimal(10,2) [default: 0]
+  currency varchar(3) [default: 'PEN']
+  status varchar [default: 'pendiente', note: "enum: pendiente, aprobado, rechazado"]
+  note text [null]
+  created_by_user_id bigint [ref: > users.id, null]
+  decided_at timestamp [null]
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null]
+
+  indexes {
+    (ticket_id, status)
+  }
+  Note: 'Una fila por versión de cotización; la vigente es la más reciente'
+}
+
+Table ticket_visits {
+  id bigint [pk, increment]
+  ticket_id bigint [ref: > support_tickets.id]
+  technician_id bigint [ref: > users.id]
+  checkin_at timestamp [null]
+  checkin_latitude decimal(10,7) [null]
+  checkin_longitude decimal(10,7) [null]
+  checkout_at timestamp [null]
+  checkout_latitude decimal(10,7) [null]
+  checkout_longitude decimal(10,7) [null]
+  work_done text [null]
+  client_signed_name varchar [null]
+  signature_path varchar [null]
+  report_pdf_path varchar [null]
+  reported_at timestamp [null]
+  created_at timestamp
+  updated_at timestamp
+  deleted_at timestamp [null]
+
+  indexes {
+    ticket_id
+  }
+}
+
+//////////////////////////////////////////////////////////////////////////
+// AUDITORÍA Y CHATBOT
+//////////////////////////////////////////////////////////////////////////
+
+Table audit_logs {
+  id bigint [pk, increment]
+  actor_type varchar [note: "enum: staff, client, system"]
+  actor_id bigint [null, note: 'polimórfico simple: users.id o clients.id según actor_type']
+  actor_name varchar [null]
+  action varchar
+  entity_type varchar [null]
+  entity_id bigint [null]
+  old_values json [null]
+  new_values json [null]
+  ip_address varchar(45) [null]
+  user_agent varchar(512) [null]
+  metadata json [null]
+  created_at timestamp
+
+  indexes {
+    (actor_type, actor_id)
+    (entity_type, entity_id)
+    action
+    created_at
+  }
+}
+
+Table chat_logs {
+  id bigint [pk, increment]
+  session_id uuid
+  role varchar [note: "enum: user, assistant"]
+  message text
+  ip_address varchar(45) [null]
+  created_at timestamp
+
+  indexes {
+    session_id
+    created_at
+  }
+  Note: 'Historial del chatbot de la app/web'
 }

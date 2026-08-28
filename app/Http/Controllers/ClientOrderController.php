@@ -38,8 +38,14 @@ class ClientOrderController extends Controller
             if ($status) {
                 $query->where('status', $status);
             }
-            
-            $orders = $query->orderBy('created_at', 'desc')->paginate(10);
+
+            // Antes ignoraba `per_page` y devolvía siempre 10: el frontend web
+            // pide 100 en una sola llamada (sin paginar más) y se quedaba solo
+            // con los pedidos más recientes, mientras la app móvil sí pagina
+            // con scroll infinito y termina mostrando más pedidos que la web.
+            $perPage = max(1, min((int) $request->input('per_page', 15), 100));
+
+            $orders = $query->orderBy('created_at', 'desc')->paginate($perPage);
 
             return ApiResponseClass::sendPaginatedResponse(
                 OrderResource::collection($orders),
