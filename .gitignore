@@ -1,6 +1,7 @@
 *.log
 .DS_Store
 .env
+.env.amazonold
 .env.backup
 .env.production
 .env.production.bak
@@ -26,3 +27,6 @@ Homestead.yaml
 npm-debug.log
 Thumbs.db
 yarn-error.log
+
+# Scripts con credenciales en texto plano (no commitear)
+/migrar_s3.py
