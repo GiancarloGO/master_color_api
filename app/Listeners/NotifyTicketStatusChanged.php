@@ -21,12 +21,11 @@ class NotifyTicketStatusChanged
                 return;
             }
 
-            $title = "Ticket {$ticket->code}";
-            $body = "Estado actualizado a: {$ticket->status}";
-
             // Si el cambio lo hizo el staff/sistema, se avisa al cliente.
             if (in_array($event->actorType, ['user', 'system'], true) && $ticket->client) {
-                $this->push->sendToModel($ticket->client, $title, $body, [
+                $techName = $ticket->assignedUser ? $ticket->assignedUser->name : 'Soporte';
+                
+                $this->push->sendToModel($ticket->client, 'Actualización de Ticket', "El técnico {$techName} ha cambiado el estado de tu ticket #{$ticket->code} a {$ticket->status}.", [
                     'ticket_id' => (string) $ticket->id,
                     'type' => 'ticket_status',
                 ]);
@@ -39,7 +38,9 @@ class NotifyTicketStatusChanged
 
             // Si lo hizo el cliente (p. ej. reapertura), se avisa al técnico asignado.
             if ($event->actorType === 'client' && $ticket->assignedUser) {
-                $this->push->sendToModel($ticket->assignedUser, $title, $body, [
+                $clientName = $ticket->client ? $ticket->client->name : 'Cliente Anónimo';
+
+                $this->push->sendToModel($ticket->assignedUser, 'Actualización de Ticket', "El cliente {$clientName} ha cambiado el estado del ticket #{$ticket->code} a {$ticket->status}.", [
                     'ticket_id' => (string) $ticket->id,
                     'type' => 'ticket_status',
                 ]);

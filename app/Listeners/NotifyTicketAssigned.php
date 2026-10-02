@@ -21,10 +21,14 @@ class NotifyTicketAssigned
                 return;
             }
 
+            // Asegurarse de tener el cliente cargado
+            $ticket->loadMissing('client');
+            $clientName = $ticket->client ? $ticket->client->name : 'Cliente Anónimo';
+
             $this->push->sendToModel(
                 $assignee,
-                "Ticket {$ticket->code} asignado",
-                "Se te asignó el ticket: {$ticket->subject}",
+                "Ticket Asignado",
+                "Se te ha asignado el ticket #{$ticket->code} del cliente {$clientName}.",
                 [
                     'ticket_id' => (string) $ticket->id,
                     'type' => 'ticket_assigned',

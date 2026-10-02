@@ -120,13 +120,15 @@ class SupportTicketController extends Controller
 
             $validator = Validator::make($request->all(), [
                 'assigned_user_id' => 'required|integer|exists:users,id',
+                'priority' => 'nullable|in:baja,media,alta,urgente',
             ]);
             if ($validator->fails()) {
                 return ApiResponseClass::errorResponse('Error de validación', 422, $validator->errors());
             }
 
             $assignee = User::findOrFail($request->assigned_user_id);
-            $ticket = $this->tickets->assign($ticket, $assignee, Auth::user());
+            $priority = $request->input('priority');
+            $ticket = $this->tickets->assign($ticket, $assignee, Auth::user(), $priority);
 
             return ApiResponseClass::sendResponse(
                 new SupportTicketResource($ticket->load('assignedUser')),

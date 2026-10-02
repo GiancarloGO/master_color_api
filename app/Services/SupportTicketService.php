@@ -166,7 +166,7 @@ class SupportTicketService
     /**
      * Asignar el ticket a un técnico.
      */
-    public function assign(SupportTicket $ticket, User $assignee, User $actor): SupportTicket
+    public function assign(SupportTicket $ticket, User $assignee, User $actor, ?string $priority = null): SupportTicket
     {
         // No se puede operar sobre tickets en estado terminal.
         $this->assertNotTerminal($ticket, 'asignar');
@@ -179,8 +179,18 @@ class SupportTicketService
 
         $statusChanged = false;
 
-        $fresh = DB::transaction(function () use ($ticket, $assignee, $actor, &$statusChanged) {
-            $ticket->update(['assigned_user_id' => $assignee->id]);
+        $fresh = DB::transaction(function () use ($ticket, $assignee, $actor, &$statusChanged, $priority) {
+            $updates = ['assigned_user_id' => $assignee->id];
+            
+            if ($priority !== null && $priority !== $ticket->priority) {
+                $updates['priority'] = $priority;
+                // Si cambiamos la prioridad, ajustamos el SLA basado en la fecha de creación original o ahora?
+                // Lo más estándar es mantener sla_due_at desde created_at o actualizarlo.
+                // Lo dejaremos actualizar según las reglas o simplemente cambiar la etiqueta:
+                $updates['sla_due_at'] = $ticket->created_at->addHours(self::SLA_HOURS[$priority] ?? 24);
+            }
+
+            $ticket->update($updates);
 
             if ($ticket->status === 'abierto') {
                 $this->applyStatus($ticket, 'asignado', $actor, "Asignado a {$assignee->name}");

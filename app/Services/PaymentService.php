@@ -662,8 +662,8 @@ class PaymentService
             }
 
             // Configurar URLs
-            $backendUrl = env('APP_URL', 'http://localhost:8000');
-            $frontendUrl = env('APP_FRONTEND_URL', 'http://localhost:5173');
+            $backendUrl = rtrim(config('app.url', 'http://localhost:8000'), '/');
+            $frontendUrl = rtrim(config('app.frontend_url', 'http://localhost:5173'), '/');
 
             // Preparar datos del pagador
             $payerName = trim($order->client->name);
@@ -689,9 +689,11 @@ class PaymentService
 
             // Solo agregar notification_url y statement_descriptor si no es localhost
             if (!str_contains($backendUrl, 'localhost') && !str_contains($backendUrl, '127.0.0.1')) {
-                $preference_data['notification_url'] = $backendUrl . '/api/webhooks/mercadopago';
+                // Revertimos a usar $backendUrl concatenado para mantener compatibilidad con APP_URL="https://api.mastercolor.net.pe/api/"
+                // que de lo contrario generaría urls con doble /api/ si se usa url('api/...')
+                $baseUrl = preg_replace('#/api/?$#', '', $backendUrl); // Removemos el /api final si existe por seguridad
+                $preference_data['notification_url'] = $baseUrl . '/api/webhooks/mercadopago';
                 $preference_data['statement_descriptor'] = 'MasterColor';
-                // No agregar auto_return ya que causa conflictos con back_urls personalizadas
             }
 
             Log::info('Creating MercadoPago preference with CURL', [

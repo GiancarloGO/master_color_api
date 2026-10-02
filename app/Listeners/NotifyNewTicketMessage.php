@@ -20,11 +20,13 @@ class NotifyNewTicketMessage
             }
 
             $ticket = $message->ticket;
-            $title = "Ticket {$ticket->code}";
+            $authorName = $message->author_name ?? 'Soporte';
+            $title = "Nuevo mensaje de {$authorName}";
+            $bodyExtract = \Illuminate\Support\Str::limit($message->body, 50);
 
             // Mensaje del staff (público) → avisar al cliente.
             if ($message->author_type === 'user' && !$message->is_internal && $ticket->client) {
-                $this->push->sendToModel($ticket->client, $title, 'Tienes una nueva respuesta de soporte', [
+                $this->push->sendToModel($ticket->client, $title, $bodyExtract, [
                     'ticket_id' => (string) $ticket->id,
                     'type' => 'ticket_message',
                 ]);
@@ -32,7 +34,7 @@ class NotifyNewTicketMessage
 
             // Mensaje del cliente → avisar al técnico asignado.
             if ($message->author_type === 'client' && $ticket->assignedUser) {
-                $this->push->sendToModel($ticket->assignedUser, $title, 'El cliente respondió en el ticket', [
+                $this->push->sendToModel($ticket->assignedUser, $title, $bodyExtract, [
                     'ticket_id' => (string) $ticket->id,
                     'type' => 'ticket_message',
                 ]);
