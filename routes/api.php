@@ -33,6 +33,8 @@ use App\Http\Controllers\SupportVisitController;
 use App\Http\Controllers\ClientProductController;
 use App\Http\Controllers\ClientNotificationController;
 use App\Http\Controllers\SupportNotificationController;
+use App\Http\Controllers\SupportDashboardController;
+use App\Http\Controllers\ClientDashboardController;
 
 /*
 |--------------------------------------------------------------------------
@@ -144,6 +146,16 @@ Route::prefix('client/cart')->middleware([\App\Http\Middleware\ClientAuth::class
 
 Route::prefix('client/products')->middleware([\App\Http\Middleware\ClientAuth::class])->group(function () {
     Route::get('/', [ClientProductController::class, 'index'])->name('client.products.index');
+});
+
+/*
+|--------------------------------------------------------------------------
+| CLIENT DASHBOARD ROUTES
+|--------------------------------------------------------------------------
+*/
+
+Route::prefix('client/dashboard')->middleware([\App\Http\Middleware\ClientAuth::class])->group(function () {
+    Route::get('/summary', [ClientDashboardController::class, 'summary'])->name('client.dashboard.summary');
 });
 
 /*
@@ -333,11 +345,13 @@ Route::prefix('support/units')->middleware(['jwt.auth', 'check.token.version'])-
 
 /*
 |--------------------------------------------------------------------------
-| SUPPORT — METRICS (STAFF)
+| SUPPORT — DASHBOARDS & METRICS (STAFF)
 |--------------------------------------------------------------------------
 */
 
 Route::middleware(['jwt.auth', 'check.token.version'])->group(function () {
+    Route::get('support/dashboard/admin', [SupportDashboardController::class, 'admin'])->name('support.dashboard.admin');
+    Route::get('support/dashboard/technician', [SupportDashboardController::class, 'technician'])->name('support.dashboard.technician');
     Route::get('support/metrics', [SupportMetricsController::class, 'index'])->name('support.metrics');
 });
 
