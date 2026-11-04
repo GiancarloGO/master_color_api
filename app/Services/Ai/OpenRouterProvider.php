@@ -32,19 +32,33 @@ class OpenRouterProvider implements AiProviderInterface
         foreach ($this->models as $model) {
             $start = microtime(true);
 
-            $response = Http::withToken($this->apiKey)
-                ->withHeaders([
-                    'HTTP-Referer' => config('app.url'),
-                    'X-Title'      => config('app.name'),
-                ])
-                ->timeout($this->timeout)
-                ->post('https://openrouter.ai/api/v1/chat/completions', [
-                    'model'       => $model,
-                    'messages'    => $messages,
-                    'max_tokens'  => 800,
-                    'temperature' => 0.7,
-                    'reasoning'   => ['exclude' => true],
+            try {
+                $response = Http::withToken($this->apiKey)
+                    ->withHeaders([
+                        'HTTP-Referer' => config('app.url'),
+                        'X-Title'      => config('app.name'),
+                    ])
+                    ->timeout($this->timeout)
+                    ->post('https://openrouter.ai/api/v1/chat/completions', [
+                        'model'       => $model,
+                        'messages'    => $messages,
+                        'max_tokens'  => 800,
+                        'temperature' => 0.7,
+                        'reasoning'   => [
+                            'effort'  => 'none',
+                            'exclude' => true,
+                        ],
+                    ]);
+            } catch (\Throwable $e) {
+                $elapsed = round(microtime(true) - $start, 2);
+                Log::warning('OpenRouter request failed, trying next model', [
+                    'model'      => $model,
+                    'error'      => $e->getMessage(),
+                    'total_time' => $elapsed,
                 ]);
+                $lastError = "Error de conexión ({$model}): " . $e->getMessage();
+                continue;
+            }
 
             $elapsed = round(microtime(true) - $start, 2);
 
@@ -56,21 +70,32 @@ class OpenRouterProvider implements AiProviderInterface
 
             if ($response->status() === 429) {
                 Log::warning('OpenRouter rate-limited, trying next model', ['model' => $model]);
-                $lastError = 'OpenRouter error 429: ' . $response->body();
+                $lastError = "OpenRouter error 429 ({$model}): " . $response->body();
                 continue;
             }
 
             if ($response->failed()) {
-                throw new \RuntimeException('OpenRouter error ' . $response->status() . ': ' . $response->body());
+                Log::warning('OpenRouter request failed with HTTP status, trying next model', [
+                    'model'  => $model,
+                    'status' => $response->status(),
+                    'body'   => $response->body(),
+                ]);
+                $lastError = "OpenRouter error {$response->status()} ({$model}): " . $response->body();
+                continue;
             }
 
             $raw   = $response->json('choices.0.message.content') ?? '';
             $reply = $this->cleanResponse($raw);
 
-            return $reply ?: throw new \RuntimeException("OpenRouter ({$model}) devolvió respuesta vacía.");
+            if ($reply !== '') {
+                return $reply;
+            }
+
+            Log::warning('OpenRouter returned empty response, trying next model', ['model' => $model]);
+            $lastError = "OpenRouter ({$model}) devolvió respuesta vacía.";
         }
 
-        throw new \RuntimeException('Todos los modelos de OpenRouter están con rate limit: ' . $lastError);
+        throw new \RuntimeException('Ningún modelo de OpenRouter pudo responder. Último error: ' . $lastError);
     }
 
     private function cleanResponse(string $text): string
