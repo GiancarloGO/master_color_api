@@ -25,7 +25,7 @@ class NotifyTicketStatusChanged
             if (in_array($event->actorType, ['user', 'system'], true) && $ticket->client) {
                 $techName = $ticket->assignedUser ? $ticket->assignedUser->name : 'Soporte';
                 
-                $this->push->sendToModel($ticket->client, 'Actualización de Ticket', "El técnico {$techName} ha cambiado el estado de tu ticket #{$ticket->code} a {$ticket->status}.", [
+                $this->push->sendToModel($ticket->client, 'Actualización de Ticket', "El técnico {$techName} ha cambiado el estado de tu ticket #{$ticket->code} a {$ticket->statusLabel()}.", [
                     'ticket_id' => (string) $ticket->id,
                     'type' => 'ticket_status',
                 ]);
@@ -40,7 +40,7 @@ class NotifyTicketStatusChanged
             if ($event->actorType === 'client' && $ticket->assignedUser) {
                 $clientName = $ticket->client ? $ticket->client->name : 'Cliente Anónimo';
 
-                $this->push->sendToModel($ticket->assignedUser, 'Actualización de Ticket', "El cliente {$clientName} ha cambiado el estado del ticket #{$ticket->code} a {$ticket->status}.", [
+                $this->push->sendToModel($ticket->assignedUser, 'Actualización de Ticket', "El cliente {$clientName} ha cambiado el estado del ticket #{$ticket->code} a {$ticket->statusLabel()}.", [
                     'ticket_id' => (string) $ticket->id,
                     'type' => 'ticket_status',
                 ]);

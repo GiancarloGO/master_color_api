@@ -58,6 +58,17 @@ class SupportTicket extends Model
      */
     public const SLA_DUE_SOON_HOURS = 4;
 
+    public const STATUS_LABELS = [
+        'abierto' => 'Abierto',
+        'asignado' => 'Asignado',
+        'en_proceso' => 'En proceso',
+        'en_espera_cliente' => 'En espera del cliente',
+        'en_espera_aprobacion' => 'En espera de aprobación',
+        'resuelto' => 'Resuelto',
+        'cerrado' => 'Cerrado',
+        'cancelado' => 'Cancelado',
+    ];
+
     /**
      * Estados en los que el SLA ya no aplica (atendido o terminal).
      */
@@ -66,6 +77,12 @@ class SupportTicket extends Model
     /**
      * Estado del SLA del ticket: on_track | due_soon | breached, o null si no aplica.
      */
+    /** Estado legible para mostrar al usuario (p. ej. en_proceso → En proceso). */
+    public function statusLabel(): string
+    {
+        return self::STATUS_LABELS[$this->status] ?? ucfirst(str_replace('_', ' ', (string) $this->status));
+    }
+
     public function slaStatus(): ?string
     {
         if (!$this->sla_due_at || in_array($this->status, self::SLA_CLOSED_STATUSES, true)) {

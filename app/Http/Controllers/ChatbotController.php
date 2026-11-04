@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ChatbotRequest;
 use App\Models\ChatLog;
 use App\Services\ChatbotService;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class ChatbotController extends Controller
@@ -15,8 +16,12 @@ class ChatbotController extends Controller
     {
         $data      = $request->validated();
         $userMsg   = $data['message'];
-        $history   = $data['history'] ?? [];
         $sessionId = $data['session_id'];
+
+        // El historial se guarda en el servidor: el que envía el cliente se ignora
+        // para que nadie pueda falsificar turnos del asistente (inyección de prompt).
+        $cacheKey = "chatbot:history:{$sessionId}";
+        $history  = Cache::get($cacheKey, []);
 
         $this->logConversation($sessionId, 'user', $userMsg, $request->ip());
 
@@ -24,6 +29,10 @@ class ChatbotController extends Controller
             $reply = $this->chatbot->reply($history, $userMsg);
 
             $this->logConversation($sessionId, 'assistant', $reply, $request->ip());
+
+            $history[] = ['role' => 'user', 'content' => $userMsg];
+            $history[] = ['role' => 'assistant', 'content' => $reply];
+            Cache::put($cacheKey, array_slice($history, -config('chatbot.max_history')), now()->addHours(2));
 
             return response()->json(['success' => true, 'reply' => $reply]);
         } catch (\Exception $e) {

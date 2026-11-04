@@ -85,6 +85,7 @@ it('devuelve el dashboard del técnico con la estructura esperada', function () 
                     'my_tickets' => ['value', 'formatted_value', 'previous_value', 'diff', 'change_pct', 'direction', 'is_favorable', 'period_label'],
                     'pending',
                     'in_process',
+                    'resolved_total',
                     'resolved_today',
                     'high_priority',
                     'due_soon',

@@ -19,6 +19,14 @@ return [
             'model'   => env('OLLAMA_MODEL', 'qwen2.5:3b'),
             'timeout' => (int) env('OLLAMA_TIMEOUT', 60),
         ],
+        'gemini' => [
+            'api_key' => env('GEMINI_APIKEY'),
+            'timeout' => (int) env('GEMINI_TIMEOUT', 30),
+            // Se prueban en orden; si uno falla (429, 5xx, vacío) se usa el siguiente.
+            'models'  => array_filter(explode(',', env('GEMINI_MODELS',
+                'gemini-3.5-flash-lite,gemini-3.5-flash'
+            ))),
+        ],
         'openrouter' => [
             'api_key' => env('OPENROUTER_API_KEY'),
             'timeout' => (int) env('OPENROUTER_TIMEOUT', 30),

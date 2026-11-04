@@ -33,6 +33,8 @@ class ChatbotService
         return Product::with('stock')
             ->whereNull('deleted_at')
             ->whereHas('stock')
+            // Con stock primero: si el catálogo supera el límite, se recortan los agotados.
+            ->orderByRaw('(SELECT quantity FROM stocks WHERE stocks.product_id = products.id LIMIT 1) > 0 DESC')
             ->orderBy('name')
             ->limit(config('chatbot.max_products'))
             ->get()

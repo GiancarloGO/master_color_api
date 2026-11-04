@@ -18,15 +18,9 @@ class TicketStatusNotification extends Mailable
         public SupportTicket $ticket,
         public ?string $previousStatus,
     ) {
-        $this->statusLabels = [
-            'abierto' => 'Abierto',
-            'asignado' => 'Asignado',
-            'en_proceso' => 'En proceso',
+        $this->statusLabels = array_merge(SupportTicket::STATUS_LABELS, [
             'en_espera_cliente' => 'En espera de tu respuesta',
-            'resuelto' => 'Resuelto',
-            'cerrado' => 'Cerrado',
-            'cancelado' => 'Cancelado',
-        ];
+        ]);
     }
 
     public function envelope(): Envelope

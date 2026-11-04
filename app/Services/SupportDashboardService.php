@@ -142,6 +142,17 @@ class SupportDashboardService
             ->whereBetween('resolved_at', [$prevDayStart, $prevDayEnd])
             ->count();
 
+        // Total histórico de resueltos del técnico, y cuántos había al cierre de ayer.
+        $resolvedTotal = SupportTicket::where('assigned_user_id', $technician->id)
+            ->whereNotNull('resolved_at')
+            ->where('resolved_at', '<=', $currentDayEnd)
+            ->count();
+
+        $resolvedTotalPrev = SupportTicket::where('assigned_user_id', $technician->id)
+            ->whereNotNull('resolved_at')
+            ->where('resolved_at', '<=', $prevDayEnd)
+            ->count();
+
         $currentHighPriority = $myActiveQ()->whereIn('priority', ['alta', 'urgente'])->count();
         $prevHighPriority = SupportTicket::where('assigned_user_id', $technician->id)
             ->whereIn('priority', ['alta', 'urgente'])
@@ -164,6 +175,7 @@ class SupportDashboardService
             'my_tickets' => $this->formatKpi($currentMyTickets, $prevMyTickets, 'vs. ayer'),
             'pending' => $this->formatKpi($currentPending, $prevPending, 'vs. ayer'),
             'in_process' => $this->formatKpi($currentInProcess, $prevInProcess, 'vs. ayer'),
+            'resolved_total' => $this->formatKpi($resolvedTotal, $resolvedTotalPrev, 'vs. ayer'),
             'resolved_today' => $this->formatKpi($resolvedToday, $resolvedYesterday, 'vs. ayer'),
             'high_priority' => $this->formatKpi($currentHighPriority, $prevHighPriority, 'vs. ayer', invertTrend: true),
             'due_soon' => $this->formatKpi($currentDueSoon, $prevDueSoon, 'vs. ayer', invertTrend: true),

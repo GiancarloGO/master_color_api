@@ -59,13 +59,14 @@ flowchart TD
 * **Parámetros query opcionales:**
   * `date` (string `YYYY-MM-DD`, default: fecha actual)
 * **Contenido devuelto:**
-  * **6 KPIs individuales** con comparativa (`vs. ayer`):
+  * **7 KPIs individuales** con comparativa (`vs. ayer`):
     1. `my_tickets`: Total tickets activos asignados al técnico en sesión.
     2. `pending`: Tickets asignados pendientes de atención.
     3. `in_process`: Tickets en trabajo activo.
-    4. `resolved_today`: Tickets resueltos en el día seleccionado.
-    5. `high_priority`: Tickets de prioridad alta o urgente asignados.
-    6. `due_soon`: Tickets asignados con SLA en riesgo inmediato.
+    4. `resolved_total`: Total de tickets resueltos por el técnico (comparado con el cierre de ayer).
+    5. `resolved_today`: Tickets resueltos en el día seleccionado vs el día anterior (tarjeta "Resueltos hoy vs ayer").
+    6. `high_priority`: Tickets de prioridad alta o urgente asignados.
+    7. `due_soon`: Tickets asignados con SLA en riesgo inmediato.
   * **Mis tickets pendientes (`pending_tickets`):**
     * Listado ordenado por urgencia y fecha con código correlativo (`TK-xxxxx`), badges de prioridad, badges de estado, cliente, equipo y problema.
   * **Próximas atenciones (`upcoming_visits`):**
