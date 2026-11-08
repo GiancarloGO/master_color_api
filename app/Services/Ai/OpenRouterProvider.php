@@ -3,10 +3,11 @@
 namespace App\Services\Ai;
 
 use App\Contracts\AiProviderInterface;
+use App\Contracts\ToolCallingProviderInterface;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
-class OpenRouterProvider implements AiProviderInterface
+class OpenRouterProvider implements AiProviderInterface, ToolCallingProviderInterface
 {
     private string $apiKey;
     private array $models;
@@ -96,6 +97,95 @@ class OpenRouterProvider implements AiProviderInterface
         }
 
         throw new \RuntimeException('Ningún modelo de OpenRouter pudo responder. Último error: ' . $lastError);
+    }
+
+    public function chatWithTools(array $messages, array $tools): array
+    {
+        if (!$this->apiKey) {
+            throw new \RuntimeException('OPENROUTER_API_KEY no está configurada.');
+        }
+
+        $payloadMessages = $this->toOpenAiMessages($messages);
+        $lastError = null;
+
+        foreach ($this->models as $model) {
+            try {
+                $response = Http::withToken($this->apiKey)
+                    ->withHeaders(['HTTP-Referer' => config('app.url'), 'X-Title' => config('app.name')])
+                    ->timeout($this->timeout)
+                    ->retry([2000, 4000], throw: false, when: fn($e) => in_array($e->response?->status(), [429, 503], true))
+                    ->post('https://openrouter.ai/api/v1/chat/completions', [
+                        'model'       => $model,
+                        'messages'    => $payloadMessages,
+                        'tools'       => $tools,
+                        'max_tokens'  => 800,
+                        'temperature' => 0.2,
+                    ]);
+            } catch (\Throwable $e) {
+                $lastError = "Error de conexión ({$model}): " . $e->getMessage();
+                continue;
+            }
+
+            if ($response->failed() || $response->json('error')) {
+                Log::warning('OpenRouter tools request failed, trying next model', ['model' => $model, 'status' => $response->status(), 'body' => $response->body()]);
+                $lastError = "OpenRouter error {$response->status()} ({$model})";
+                continue;
+            }
+
+            $message = $response->json('choices.0.message') ?? [];
+            $calls = [];
+            foreach ($message['tool_calls'] ?? [] as $call) {
+                $args = $call['function']['arguments'] ?? [];
+                $calls[] = [
+                    'name'      => (string) ($call['function']['name'] ?? ''),
+                    'arguments' => is_array($args) ? $args : (json_decode((string) $args, true) ?: []),
+                ];
+            }
+
+            $text = $this->cleanResponse((string) ($message['content'] ?? ''));
+
+            if ($calls === [] && $text === '') {
+                $lastError = "OpenRouter ({$model}) devolvió respuesta vacía.";
+                continue;
+            }
+
+            return ['content' => $text, 'tool_calls' => $calls];
+        }
+
+        throw new \RuntimeException('Ningún modelo de OpenRouter pudo responder. Último error: ' . $lastError);
+    }
+
+    /** Formato interno (estilo Ollama) → formato OpenAI: ids de llamada y argumentos como JSON string. */
+    private function toOpenAiMessages(array $messages): array
+    {
+        $out = [];
+        $pending = [];
+        $n = 0;
+
+        foreach ($messages as $m) {
+            if ($m['role'] === 'assistant' && !empty($m['tool_calls'])) {
+                $calls = [];
+                foreach ($m['tool_calls'] as $c) {
+                    $id = 'call_' . (++$n);
+                    $pending[] = $id;
+                    $calls[] = ['id' => $id, 'type' => 'function', 'function' => [
+                        'name'      => $c['function']['name'],
+                        'arguments' => json_encode((object) (array) $c['function']['arguments'], JSON_UNESCAPED_UNICODE),
+                    ]];
+                }
+                $out[] = ['role' => 'assistant', 'content' => $m['content'] ?? '', 'tool_calls' => $calls];
+                continue;
+            }
+
+            if ($m['role'] === 'tool') {
+                $out[] = ['role' => 'tool', 'tool_call_id' => array_shift($pending) ?? 'call_0', 'content' => $m['content']];
+                continue;
+            }
+
+            $out[] = ['role' => $m['role'], 'content' => $m['content']];
+        }
+
+        return $out;
     }
 
     private function cleanResponse(string $text): string

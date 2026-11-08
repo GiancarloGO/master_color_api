@@ -3,9 +3,10 @@
 namespace App\Services\Ai;
 
 use App\Contracts\AiProviderInterface;
+use App\Contracts\ToolCallingProviderInterface;
 use Illuminate\Support\Facades\Log;
 
-class OllamaProvider implements AiProviderInterface
+class OllamaProvider implements AiProviderInterface, ToolCallingProviderInterface
 {
     private string $url;
     private string $model;
@@ -67,5 +68,33 @@ class OllamaProvider implements AiProviderInterface
         }
 
         return trim($reply) ?: throw new \RuntimeException('Ollama devolvió respuesta vacía.');
+    }
+
+    public function chatWithTools(array $messages, array $tools): array
+    {
+        $response = \Illuminate\Support\Facades\Http::timeout($this->timeout)
+            ->post($this->url . '/api/chat', [
+                'model'    => $this->model,
+                'messages' => array_map(fn($m) => array_diff_key($m, ['provider_parts' => 1]), $messages),
+                'tools'    => $tools,
+                'stream'   => false,
+                'options'  => ['num_ctx' => 4096, 'num_predict' => 400, 'temperature' => 0.2],
+            ]);
+
+        if ($response->failed()) {
+            throw new \RuntimeException('Ollama HTTP ' . $response->status());
+        }
+
+        $message = $response->json('message') ?? [];
+        $calls = [];
+        foreach ($message['tool_calls'] ?? [] as $call) {
+            $args = $call['function']['arguments'] ?? [];
+            $calls[] = [
+                'name'      => (string) ($call['function']['name'] ?? ''),
+                'arguments' => is_array($args) ? $args : (json_decode((string) $args, true) ?: []),
+            ];
+        }
+
+        return ['content' => (string) ($message['content'] ?? ''), 'tool_calls' => $calls];
     }
 }
