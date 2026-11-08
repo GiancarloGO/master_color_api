@@ -5,12 +5,13 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ChatbotRequest;
 use App\Models\ChatLog;
 use App\Services\ChatbotService;
+use App\Services\Chatbot\ToolChatbotService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class ChatbotController extends Controller
 {
-    public function __construct(private ChatbotService $chatbot) {}
+    public function __construct(private ChatbotService $chatbot, private ToolChatbotService $toolChatbot) {}
 
     public function message(ChatbotRequest $request)
     {
@@ -26,7 +27,9 @@ class ChatbotController extends Controller
         $this->logConversation($sessionId, 'user', $userMsg, $request->ip());
 
         try {
-            $reply = $this->chatbot->reply($history, $userMsg);
+            $reply = config('chatbot.mode') === 'tools'
+                ? $this->toolChatbot->reply($history, $userMsg)
+                : $this->chatbot->reply($history, $userMsg);
 
             $this->logConversation($sessionId, 'assistant', $reply, $request->ip());
 

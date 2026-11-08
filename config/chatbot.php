@@ -5,6 +5,13 @@ return [
     'max_products' => (int) env('CHATBOT_MAX_PRODUCTS', 50),
     'max_history'  => 6,
 
+    // 'catalog' = flujo original (catálogo completo en el prompt).
+    // 'tools'   = LLM con tool calling + búsqueda controlada + validación de cifras (requiere Ollama).
+    'mode'          => env('CHATBOT_MODE', 'catalog'),
+    'contact_phone' => env('CHATBOT_CONTACT_PHONE', '+51 999 830 565'),
+    // Días sin actualizar tras los cuales el dato de un producto se marca como antiguo.
+    'stale_days'    => (int) env('CHATBOT_STALE_DAYS', 180),
+
     // Persistir cada mensaje del chatbot en la tabla `chat_logs`. Desactivado por
     // defecto para evitar saturar la base de datos con tráfico público; las
     // conversaciones se registran igualmente en el canal de log `chatbot` (archivo).
