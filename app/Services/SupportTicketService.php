@@ -89,6 +89,7 @@ class SupportTicketService
             $ticket->update(['code' => 'SOP-' . now()->format('Y') . '-' . str_pad((string) $ticket->id, 4, '0', STR_PAD_LEFT)]);
 
             $this->recordStatus($ticket, null, 'abierto', $client, 'Ticket creado');
+            $this->syncUnitStatus($ticket);
 
             $this->audit->logClientAction($client, 'support_ticket.created', 'SupportTicket', $ticket->id, null, [
                 'code' => $ticket->code,
@@ -418,6 +419,33 @@ class SupportTicketService
 
         $ticket->update($payload);
         $this->recordStatus($ticket, $from, $newStatus, $actor, $note);
+        $this->syncUnitStatus($ticket);
+    }
+
+    /**
+     * La unidad está 'en_servicio' mientras tenga algún ticket abierto
+     * (no resuelto/cerrado/cancelado); si no, vuelve a 'activa'.
+     * Las unidades 'baja' no se tocan.
+     */
+    private function syncUnitStatus(SupportTicket $ticket): void
+    {
+        if (!$ticket->sold_unit_id) {
+            return;
+        }
+
+        $unit = SoldUnit::find($ticket->sold_unit_id);
+        if (!$unit || $unit->status === 'baja') {
+            return;
+        }
+
+        $hasOpen = SupportTicket::where('sold_unit_id', $unit->id)
+            ->whereNotIn('status', ['resuelto', 'cerrado', 'cancelado'])
+            ->exists();
+
+        $target = $hasOpen ? 'en_servicio' : 'activa';
+        if ($unit->status !== $target) {
+            $unit->update(['status' => $target]);
+        }
     }
 
     private function recordStatus(SupportTicket $ticket, ?string $from, string $to, Model $actor, ?string $note): void

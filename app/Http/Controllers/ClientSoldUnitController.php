@@ -37,6 +37,10 @@ class ClientSoldUnitController extends Controller
                 } elseif ($request->warranty === 'vencida') {
                     $query->whereNotNull('warranty_expires_at')
                           ->whereDate('warranty_expires_at', '<', now()->toDateString());
+                } elseif ($request->warranty === 'sin_garantia') {
+                    $query->where(function ($q) {
+                        $q->whereNull('warranty_expires_at')->orWhere('warranty_months', 0);
+                    });
                 }
             }
 
