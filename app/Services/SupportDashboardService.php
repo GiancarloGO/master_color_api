@@ -16,17 +16,40 @@ class SupportDashboardService
      * Dashboard para Administrador (móvil y web).
      * Soporta mes y año (default: mes actual).
      */
-    public function getAdminDashboard(?int $month = null, ?int $year = null): array
+    public function getAdminDashboard(?int $month = null, ?int $year = null, ?string $dateFrom = null, ?string $dateTo = null): array
     {
         $now = now();
-        $targetYear = $year ?: $now->year;
-        $targetMonth = $month ?: $now->month;
+        $isRange = $dateFrom !== null || $dateTo !== null;
 
-        $currentStart = Carbon::createFromDate($targetYear, $targetMonth, 1)->startOfMonth();
-        $currentEnd = (clone $currentStart)->endOfMonth();
+        if ($isRange) {
+            // Rango personalizado: el periodo anterior es el de igual duración
+            // inmediatamente previo al rango.
+            $currentStart = Carbon::parse($dateFrom ?? $dateTo)->startOfDay();
+            $currentEnd = Carbon::parse($dateTo ?? $dateFrom)->endOfDay();
+            if ($currentEnd->lt($currentStart)) {
+                [$currentStart, $currentEnd] = [$currentEnd->copy()->startOfDay(), $currentStart->copy()->endOfDay()];
+            }
+            $days = $currentStart->diffInDays($currentEnd->copy()->startOfDay()) + 1;
+            $previousStart = $currentStart->copy()->subDays($days);
+            $previousEnd = $currentStart->copy()->subSecond();
+            $targetYear = $currentStart->year;
+            $targetMonth = $currentStart->month;
+            $label = $currentStart->isSameDay($currentEnd)
+                ? $currentStart->translatedFormat('d M Y')
+                : $currentStart->translatedFormat('d M Y') . ' - ' . $currentEnd->translatedFormat('d M Y');
+            $comparison = 'vs. periodo anterior';
+        } else {
+            $targetYear = $year ?: $now->year;
+            $targetMonth = $month ?: $now->month;
 
-        $previousStart = (clone $currentStart)->subMonth()->startOfMonth();
-        $previousEnd = (clone $previousStart)->endOfMonth();
+            $currentStart = Carbon::createFromDate($targetYear, $targetMonth, 1)->startOfMonth();
+            $currentEnd = (clone $currentStart)->endOfMonth();
+
+            $previousStart = (clone $currentStart)->subMonth()->startOfMonth();
+            $previousEnd = (clone $previousStart)->endOfMonth();
+            $label = $currentStart->translatedFormat('M Y');
+            $comparison = 'vs. mes anterior';
+        }
 
         $currentMetrics = $this->calculateAdminPeriodMetrics($currentStart, $currentEnd);
         $previousMetrics = $this->calculateAdminPeriodMetrics($previousStart, $previousEnd);
@@ -35,46 +58,46 @@ class SupportDashboardService
             'total_tickets' => $this->formatKpi(
                 $currentMetrics['total_tickets'],
                 $previousMetrics['total_tickets'],
-                'vs. mes anterior'
+                $comparison
             ),
             'open_tickets' => $this->formatKpi(
                 $currentMetrics['open_tickets'],
                 $previousMetrics['open_tickets'],
-                'vs. mes anterior'
+                $comparison
             ),
             'unassigned_tickets' => $this->formatKpi(
                 $currentMetrics['unassigned_tickets'],
                 $previousMetrics['unassigned_tickets'],
-                'vs. mes anterior',
+                $comparison,
                 invertTrend: true
             ),
             'in_process_tickets' => $this->formatKpi(
                 $currentMetrics['in_process_tickets'],
                 $previousMetrics['in_process_tickets'],
-                'vs. mes anterior'
+                $comparison
             ),
             'resolved_this_month' => $this->formatKpi(
                 $currentMetrics['resolved_tickets'],
                 $previousMetrics['resolved_tickets'],
-                'vs. mes anterior'
+                $comparison
             ),
             'sla_breached' => $this->formatKpi(
                 $currentMetrics['sla_breached'],
                 $previousMetrics['sla_breached'],
-                'vs. mes anterior',
+                $comparison,
                 invertTrend: true
             ),
             'avg_first_response_hours' => $this->formatKpi(
                 $currentMetrics['avg_first_response'],
                 $previousMetrics['avg_first_response'],
-                'vs. mes anterior',
+                $comparison,
                 unit: 'h',
                 invertTrend: true
             ),
             'avg_resolution_hours' => $this->formatKpi(
                 $currentMetrics['avg_resolution'],
                 $previousMetrics['avg_resolution'],
-                'vs. mes anterior',
+                $comparison,
                 unit: 'h',
                 invertTrend: true
             ),
@@ -85,7 +108,9 @@ class SupportDashboardService
                 'month' => $targetMonth,
                 'year' => $targetYear,
                 'month_name' => $currentStart->translatedFormat('F'),
-                'label' => $currentStart->translatedFormat('M Y'),
+                'label' => $label,
+                'date_from' => $currentStart->toDateString(),
+                'date_to' => $currentEnd->toDateString(),
             ],
             'kpis' => $kpis,
             'tickets_by_status' => $this->getTicketsByStatusDistribution($currentStart, $currentEnd),
