@@ -24,14 +24,14 @@ class ChatbotController extends Controller
         $cacheKey = "chatbot:history:{$sessionId}";
         $history  = Cache::get($cacheKey, []);
 
-        $this->logConversation($sessionId, 'user', $userMsg, $request->ip());
+        $this->logConversation($sessionId, 'user', $userMsg);
 
         try {
             $reply = config('chatbot.mode') === 'tools'
                 ? $this->toolChatbot->reply($history, $userMsg)
                 : $this->chatbot->reply($history, $userMsg);
 
-            $this->logConversation($sessionId, 'assistant', $reply, $request->ip());
+            $this->logConversation($sessionId, 'assistant', $reply);
 
             $history[] = ['role' => 'user', 'content' => $userMsg];
             $history[] = ['role' => 'assistant', 'content' => $reply];
@@ -43,7 +43,7 @@ class ChatbotController extends Controller
 
             return response()->json([
                 'success' => false,
-                'reply'   => 'Lo siento, el asistente no está disponible en este momento. Por favor intenta en unos minutos o contáctanos directamente.',
+                'reply'   => 'Lo siento, el asistente no está disponible en este momento. Por favor intenta en unos minutos o contáctanos con un asesor por WhatsApp al ' . config('chatbot.contact_phone') . '.',
             ], 503);
         }
     }
@@ -53,13 +53,12 @@ class ChatbotController extends Controller
      * en BD (`chat_logs`) solo si CHATBOT_PERSIST_LOGS está activo, para no
      * saturar la base de datos con el tráfico público del asistente.
      */
-    private function logConversation(string $sessionId, string $role, string $message, ?string $ip): void
+    private function logConversation(string $sessionId, string $role, string $message): void
     {
         Log::channel('chatbot')->info('chat', [
             'session_id' => $sessionId,
             'role'       => $role,
             'message'    => $message,
-            'ip_address' => $ip,
         ]);
 
         if (config('chatbot.persist_logs')) {
@@ -67,7 +66,6 @@ class ChatbotController extends Controller
                 'session_id' => $sessionId,
                 'role'       => $role,
                 'message'    => $message,
-                'ip_address' => $ip,
             ]);
         }
     }

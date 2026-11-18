@@ -19,9 +19,11 @@ class ChatbotEvaluate extends Command
         $rows = [];
 
         foreach ($cases as $case) {
+            $aiRun = [];
             $t = microtime(true);
             try {
-                $aiReply = $ai->respond([], $case['q'])['reply'];
+                $aiRun = $ai->respond([], $case['q']);
+                $aiReply = $aiRun['reply'];
             } catch (\Throwable $e) {
                 $aiReply = 'ERROR: ' . $e->getMessage();
             }
@@ -33,7 +35,8 @@ class ChatbotEvaluate extends Command
 
             $rows[] = [
                 'id' => $case['id'], 'type' => $case['type'], 'q' => $case['q'],
-                'ai' => ['reply' => $aiReply, 'ok' => $this->grade($case, $aiReply, $phone), 'ms' => round($aiMs)],
+                'ai' => ['reply' => $aiReply, 'ok' => $this->grade($case, $aiReply, $phone), 'ms' => round($aiMs),
+                    'rounds' => $aiRun['rounds'] ?? null, 'fallback' => $aiRun['fallback'] ?? null, 'degraded' => $aiRun['degraded'] ?? null],
                 'baseline' => ['reply' => $baseReply, 'ok' => $this->grade($case, $baseReply, $phone), 'ms' => round($baseMs)],
             ];
         }
@@ -47,7 +50,10 @@ class ChatbotEvaluate extends Command
         foreach (['ai' => 'IA', 'baseline' => 'Línea base'] as $key => $label) {
             $ok = count(array_filter($rows, fn($r) => $r[$key]['ok']));
             $avg = array_sum(array_column(array_column($rows, $key), 'ms')) / $n / 1000;
-            $this->info(sprintf('%s: %d/%d correctas (%.1f%%), tiempo medio %.2f s', $label, $ok, $n, 100 * $ok / $n, $avg));
+            $times = array_column(array_column($rows, $key), 'ms');
+            sort($times);
+            $p95 = $times[(int) ceil(0.95 * $n) - 1] / 1000;
+            $this->info(sprintf('%s: %d/%d correctas (%.1f%%), tiempo medio %.2f s, p95 %.2f s', $label, $ok, $n, 100 * $ok / $n, $avg, $p95));
         }
         $this->line('Umbral de aceptación: ≥ ' . (int) ceil(0.85 * $n) . "/{$n} correctas y tiempo medio ≤ 10 s.");
 

@@ -113,7 +113,7 @@ class OpenRouterProvider implements AiProviderInterface, ToolCallingProviderInte
                 $response = Http::withToken($this->apiKey)
                     ->withHeaders(['HTTP-Referer' => config('app.url'), 'X-Title' => config('app.name')])
                     ->timeout($this->timeout)
-                    ->retry([2000, 4000], throw: false, when: fn($e) => in_array($e->response?->status(), [429, 503], true))
+                    ->retry([1000], throw: false, when: fn($e) => in_array($e->response?->status(), [429, 503], true))
                     ->post('https://openrouter.ai/api/v1/chat/completions', [
                         'model'       => $model,
                         'messages'    => $payloadMessages,

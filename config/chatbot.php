@@ -11,6 +11,8 @@ return [
     'contact_phone' => env('CHATBOT_CONTACT_PHONE', '+51 999 830 565'),
     // Días sin actualizar tras los cuales el dato de un producto se marca como antiguo.
     'stale_days'    => (int) env('CHATBOT_STALE_DAYS', 180),
+    // Segundos tras los cuales, con datos ya recuperados, no se espera otra ronda del modelo.
+    'time_budget'   => (int) env('CHATBOT_TIME_BUDGET', 10),
 
     // Persistir cada mensaje del chatbot en la tabla `chat_logs`. Desactivado por
     // defecto para evitar saturar la base de datos con tráfico público; las

@@ -3,6 +3,7 @@
 namespace App\Services\Chatbot;
 
 use App\Contracts\ToolCallingProviderInterface;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Consulta → LLM (intención y entidades) → herramienta controlada → BD →
@@ -26,7 +27,7 @@ class ToolChatbotService
     }
 
     /**
-     * @return array{reply: string, status: string, items: array, tool_calls: int, fallback: bool}
+     * @return array{reply: string, status: string, items: array, tool_calls: int, rounds: int, fallback: bool, degraded: bool}
      */
     public function respond(array $history, string $userMsg): array
     {
@@ -39,10 +40,27 @@ class ToolChatbotService
         $status = null;
         $items = [];
         $calls = 0;
+        $llmCalls = 0;
         $content = '';
+        $start = microtime(true);
 
         for ($round = 0; $round < self::MAX_ROUNDS; $round++) {
-            $turn = $this->ai->chatWithTools($messages, [ProductSearchTool::definition()]);
+            // Presupuesto de tiempo: con datos ya recuperados no se espera otra ronda del modelo.
+            if ($status !== null && microtime(true) - $start > (int) config('chatbot.time_budget')) {
+                $content = '';
+                break;
+            }
+
+            try {
+                $llmCalls++;
+                $turn = $this->ai->chatWithTools($messages, [ProductSearchTool::definition()]);
+            } catch (\Throwable $e) {
+                // Modelo caído, sin cuota o con tiempo agotado: se responde con datos de la BD.
+                Log::warning('Chatbot: proveedor de IA no disponible, respuesta del backend', ['error' => $e->getMessage()]);
+                $result = $status !== null ? ['status' => $status, 'items' => $items] : $this->tool->search(['consulta' => $userMsg]);
+
+                return $this->fallback($result['status'], $result['items'], $calls, $llmCalls, true);
+            }
             $content = trim($turn['content']);
 
             if ($turn['tool_calls'] === []) break;
@@ -73,23 +91,23 @@ class ToolChatbotService
         // Se hace la búsqueda con el mensaje original y se responde con datos reales.
         if ($status === null && $this->guard->isFaithful($content, []) === false) {
             $result = $this->tool->search(['consulta' => $userMsg]);
-            return $this->fallback($result['status'], $result['items'], $calls);
+            return $this->fallback($result['status'], $result['items'], $calls, $llmCalls);
         }
 
         if ($status === null) {
-            return ['reply' => $content ?: $this->composer->compose('insufficient', []), 'status' => 'no_tool', 'items' => [], 'tool_calls' => $calls, 'fallback' => false];
+            return ['reply' => $content ?: $this->composer->compose('insufficient', []), 'status' => 'no_tool', 'items' => [], 'tool_calls' => $calls, 'rounds' => $llmCalls, 'fallback' => false, 'degraded' => false];
         }
 
         if ($content === '' || ! $this->guard->isFaithful($content, $items)) {
-            return $this->fallback($status, $items, $calls);
+            return $this->fallback($status, $items, $calls, $llmCalls);
         }
 
-        return ['reply' => $content, 'status' => $status, 'items' => $items, 'tool_calls' => $calls, 'fallback' => false];
+        return ['reply' => $content, 'status' => $status, 'items' => $items, 'tool_calls' => $calls, 'rounds' => $llmCalls, 'fallback' => false, 'degraded' => false];
     }
 
-    private function fallback(string $status, array $items, int $calls): array
+    private function fallback(string $status, array $items, int $calls, int $rounds, bool $degraded = false): array
     {
-        return ['reply' => $this->composer->compose($status, $items), 'status' => $status, 'items' => $items, 'tool_calls' => $calls, 'fallback' => true];
+        return ['reply' => $this->composer->compose($status, $items), 'status' => $status, 'items' => $items, 'tool_calls' => $calls, 'rounds' => $rounds, 'fallback' => true, 'degraded' => $degraded];
     }
 
     private function systemPrompt(): string

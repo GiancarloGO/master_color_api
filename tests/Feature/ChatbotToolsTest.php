@@ -173,3 +173,28 @@ it('tolera argumentos con tipo equivocado enviados por el modelo', function () {
     expect($tool->search(['consulta' => ['ricoh', 'im600']])['status'])->toBe('found')
         ->and($tool->search(['consulta' => 'ricoh', 'consultas' => 'ricoh im600', 'precio_max' => ['x']])['status'])->toBeIn(['found', 'ambiguous', 'none']);
 });
+
+it('responde con datos de la BD si el proveedor de IA falla', function () {
+    chatProduct('Ricoh im600', 'Ricoh', 'impresoras', 4500, 2);
+    $ai = new class implements ToolCallingProviderInterface {
+        public function chatWithTools(array $messages, array $tools): array
+        {
+            throw new \RuntimeException('OpenRouter error 429');
+        }
+    };
+
+    $r = toolService($ai)->respond([], 'precio de la ricoh im600');
+
+    expect($r['degraded'])->toBeTrue()
+        ->and($r['fallback'])->toBeTrue()
+        ->and($r['reply'])->toContain('4,500.00');
+});
+
+it('no espera otra ronda del modelo si se agotó el presupuesto de tiempo', function () {
+    config(['chatbot.time_budget' => -1]);
+    chatProduct('Ricoh im600', 'Ricoh', 'impresoras', 4500, 2);
+
+    $r = toolService(fakeProvider(['consulta' => 'ricoh im600'], 'Cuesta S/ 9,999'))->respond([], 'ricoh im600');
+
+    expect($r['rounds'])->toBe(1)->and($r['fallback'])->toBeTrue()->and($r['reply'])->toContain('4,500.00');
+});

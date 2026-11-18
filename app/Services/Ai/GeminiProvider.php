@@ -127,7 +127,7 @@ class GeminiProvider implements AiProviderInterface, ToolCallingProviderInterfac
                 // 429/503 suelen ser transitorios (límite por minuto, saturación): se reintenta antes de cambiar de modelo.
                 $response = Http::withHeaders(['x-goog-api-key' => $this->apiKey])
                     ->timeout($this->timeout)
-                    ->retry([2000, 4000], throw: false, when: fn($e, $req) => in_array($e->response?->status(), [429, 503], true))
+                    ->retry([1000], throw: false, when: fn($e, $req) => in_array($e->response?->status(), [429, 503], true))
                     ->post(self::ENDPOINT . "/{$model}:generateContent", $payload);
             } catch (\Throwable $e) {
                 $lastError = "Error de conexión ({$model}): " . $e->getMessage();
