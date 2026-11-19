@@ -6,6 +6,8 @@ use Illuminate\Foundation\Http\FormRequest;
 
 use App\Classes\ApiResponseClass;
 use Illuminate\Contracts\Validation\Validator;
+use Illuminate\Validation\Rule;
+
 class ProductStoreRequest extends FormRequest
 {
     /**
@@ -24,7 +26,7 @@ class ProductStoreRequest extends FormRequest
     public function rules(): array
     {
         return [
-                'name' => 'required|string|max:255',
+                'name' => ['required', 'string', 'max:255', Rule::unique('products', 'name')->whereNull('deleted_at')],
                 'sku' => 'required|string|unique:products,sku|max:255',
                 'image' => 'required|image|mimes:jpeg,png,jpg,webp|max:5120', // 5MB max
                 'barcode' => 'required|string|unique:products,barcode|max:255',
@@ -69,6 +71,7 @@ class ProductStoreRequest extends FormRequest
             'default_warranty_months.max' => 'Los meses de garantía no pueden exceder 120.',
 
             // Mensajes para unique
+            'name.unique' => 'Ya existe un producto con este nombre.',
             'sku.unique' => 'Este SKU ya existe en el sistema.',
             'barcode.unique' => 'Este código de barras ya existe en el sistema.',
 

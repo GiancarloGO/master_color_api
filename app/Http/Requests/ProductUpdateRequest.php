@@ -6,6 +6,7 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use App\Classes\ApiResponseClass;
+use Illuminate\Validation\Rule;
 
 class ProductUpdateRequest extends FormRequest
 {
@@ -24,11 +25,13 @@ class ProductUpdateRequest extends FormRequest
      */
     public function rules(): array
     {
+            $id = $this->route('id');
+
             return [
-                'name' => 'required|string|max:255',
-                'sku' => 'required|string|max:255',
+                'name' => ['required', 'string', 'max:255', Rule::unique('products', 'name')->ignore($id)->whereNull('deleted_at')],
+                'sku' => ['required', 'string', 'max:255', Rule::unique('products', 'sku')->ignore($id)],
                 'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120', // 5MB max
-                'barcode' => 'required|string|max:255',
+                'barcode' => ['required', 'string', 'max:255', Rule::unique('products', 'barcode')->ignore($id)],
                 'brand' => 'required|string|max:255',
                 'description' => 'required|string|max:255',
                 'presentation' => 'required|string|max:255',
@@ -56,6 +59,9 @@ class ProductUpdateRequest extends FormRequest
             'name.string' => 'El nombre debe ser un texto válido.',
             'sku.required' => 'El SKU es obligatorio.',
             'sku.string' => 'El SKU debe ser un texto válido.',
+            'name.unique' => 'Ya existe un producto con este nombre.',
+            'sku.unique' => 'Este SKU ya existe en el sistema.',
+            'barcode.unique' => 'Este código de barras ya existe en el sistema.',
             'image.image' => 'El archivo debe ser una imagen válida.',
             'image.mimes' => 'La imagen debe ser de tipo: jpeg, png, jpg o webp.',
             'image.max' => 'La imagen no puede ser mayor a 5MB.',
