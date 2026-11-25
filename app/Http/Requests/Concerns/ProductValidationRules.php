@@ -18,7 +18,7 @@ trait ProductValidationRules
         return [
             'name' => ['required', 'string', 'max:255', Rule::unique('products', 'name')->ignore($ignoreId)->whereNull('deleted_at')],
             'sku' => ['required', 'string', 'max:255', Rule::unique('products', 'sku')->ignore($ignoreId)],
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:5120',
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
             'barcode' => ['nullable', 'string', 'max:255', Rule::unique('products', 'barcode')->ignore($ignoreId)],
             'brand' => 'nullable|string|max:255',
             'description' => 'nullable|string|max:2000',
@@ -101,9 +101,10 @@ trait ProductValidationRules
             'unidad.string' => 'La unidad debe ser un texto válido.',
             'unidad.max' => 'La unidad no puede tener más de 255 caracteres.',
 
-            'image.image' => 'El archivo debe ser una imagen válida.',
-            'image.mimes' => 'La imagen debe ser de tipo: jpeg, png, jpg o webp.',
-            'image.max' => 'La imagen no puede ser mayor a 5MB.',
+            'image.image' => 'El archivo seleccionado debe ser una imagen válida.',
+            'image.mimes' => 'La imagen debe estar en formato JPG, PNG o WEBP.',
+            'image.max' => 'La imagen no debe superar los 2 MB.',
+            'image.uploaded' => 'No se pudo subir la imagen. Verifica que pese menos de 2 MB e intenta nuevamente.',
 
             'default_warranty_months.integer' => 'Los meses de garantía deben ser un número entero.',
             'default_warranty_months.min' => 'Los meses de garantía no pueden ser negativos.',
