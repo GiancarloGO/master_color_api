@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\User;
 use App\Http\Requests\ProductStoreRequest;
 use App\Http\Requests\ProductUpdateRequest;
 use Illuminate\Support\Facades\Auth;
@@ -17,7 +18,8 @@ class ProductService
     public function __construct(
         private FileUploadService $fileUploadService,
         private StockService $stockService,
-        private StockMovementService $stockMovementService
+        private StockMovementService $stockMovementService,
+        private AuditService $audit
     ) {}
 
     /**
@@ -114,9 +116,24 @@ class ProductService
             }
 
             $this->clearProductCache();
-            
+
+            $actor = Auth::user();
+            if ($actor instanceof User) {
+                $this->audit->logStaffAction(
+                    $actor,
+                    'product.created',
+                    'Product',
+                    $product->id,
+                    null,
+                    array_merge($this->auditSnapshot($product->load('stock')), [
+                        'initial_quantity' => (int) $initialQuantity,
+                    ]),
+                    ['product_name' => $product->name, 'sku' => $product->sku]
+                );
+            }
+
             DB::commit();
-            
+
             return $product->load(['user', 'stock', 'productCategory']);
             
         } catch (\Exception $e) {
@@ -132,7 +149,7 @@ class ProductService
 
     public function updateProduct(ProductUpdateRequest $request, int $id): ?Product
     {
-        $product = Product::find($id);
+        $product = Product::with('stock')->find($id);
         
         if (!$product) {
             return null;
@@ -141,6 +158,7 @@ class ProductService
         DB::beginTransaction();
         
         try {
+            $oldSnapshot = $this->auditSnapshot($product);
             $validated = $request->validated();
             $oldImagePath = $product->image_url;
 
@@ -159,7 +177,7 @@ class ProductService
             $stockFields = ['min_stock', 'max_stock', 'purchase_price', 'sale_price'];
             
             foreach ($stockFields as $field) {
-                if (isset($validated[$field])) {
+                if (array_key_exists($field, $validated)) {
                     $stockData[$field] = $validated[$field];
                     unset($validated[$field]);
                 }
@@ -177,12 +195,29 @@ class ProductService
             if (!empty($stockData)) {
                 $this->stockService->updateStock($product->id, $stockData);
             }
+
+            $product->refresh()->load('stock');
+            $newSnapshot = $this->auditSnapshot($product);
+            [$changedOld, $changedNew] = $this->diffSnapshots($oldSnapshot, $newSnapshot);
+
+            $actor = Auth::user();
+            if ($actor instanceof User && $changedNew !== []) {
+                $this->audit->logStaffAction(
+                    $actor,
+                    'product.updated',
+                    'Product',
+                    $product->id,
+                    $changedOld,
+                    $changedNew,
+                    ['product_name' => $product->name, 'sku' => $product->sku]
+                );
+            }
             
             $this->clearProductCache($id);
             
             DB::commit();
             
-            return $product->refresh()->load(['user', 'stock', 'productCategory']);
+            return $product->load(['user', 'stock', 'productCategory']);
             
         } catch (\Exception $e) {
             DB::rollBack();
@@ -197,7 +232,7 @@ class ProductService
 
     public function deleteProduct(int $id): bool
     {
-        $product = Product::find($id);
+        $product = Product::with('stock')->find($id);
         
         if (!$product) {
             return false;
@@ -206,9 +241,23 @@ class ProductService
         DB::beginTransaction();
         
         try {
+            $snapshot = $this->auditSnapshot($product);
             $this->fileUploadService->deleteImage($product->image_url);
             
             $product->delete();
+
+            $actor = Auth::user();
+            if ($actor instanceof User) {
+                $this->audit->logStaffAction(
+                    $actor,
+                    'product.deleted',
+                    'Product',
+                    $product->id,
+                    $snapshot,
+                    null,
+                    ['product_name' => $product->name, 'sku' => $product->sku]
+                );
+            }
             
             $this->clearProductCache($id);
             
@@ -253,5 +302,55 @@ class ProductService
         }
         
         Cache::flush();
+    }
+
+    /**
+     * Captura los campos auditables del producto y su stock asociado.
+     *
+     * @return array<string, mixed>
+     */
+    private function auditSnapshot(Product $product): array
+    {
+        $stock = $product->stock;
+
+        return [
+            'name' => $product->name,
+            'sku' => $product->sku,
+            'barcode' => $product->barcode,
+            'brand' => $product->brand,
+            'description' => $product->description,
+            'presentation' => $product->presentation,
+            'category' => $product->category,
+            'unidad' => $product->unidad,
+            'default_warranty_months' => (int) $product->default_warranty_months,
+            'image_url' => $product->getRawOriginal('image_url'),
+            'purchase_price' => $stock ? (float) $stock->purchase_price : null,
+            'sale_price' => $stock ? (float) $stock->sale_price : null,
+            'min_stock' => $stock ? (int) $stock->min_stock : null,
+            'max_stock' => $stock ? (int) $stock->max_stock : null,
+        ];
+    }
+
+    /**
+     * Devuelve solo los campos que cambiaron entre dos snapshots.
+     *
+     * @param  array<string, mixed>  $old
+     * @param  array<string, mixed>  $new
+     * @return array{0: array<string, mixed>, 1: array<string, mixed>}
+     */
+    private function diffSnapshots(array $old, array $new): array
+    {
+        $changedOld = [];
+        $changedNew = [];
+
+        foreach ($new as $key => $value) {
+            $prev = $old[$key] ?? null;
+            if ($prev !== $value) {
+                $changedOld[$key] = $prev;
+                $changedNew[$key] = $value;
+            }
+        }
+
+        return [$changedOld, $changedNew];
     }
 }
