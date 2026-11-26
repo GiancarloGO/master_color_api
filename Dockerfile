@@ -39,6 +39,11 @@ RUN echo 'opcache.memory_consumption=128' >> /usr/local/etc/php/conf.d/opcache.i
     && echo 'opcache.revalidate_freq=2' >> /usr/local/etc/php/conf.d/opcache.ini \
     && echo 'opcache.fast_shutdown=1' >> /usr/local/etc/php/conf.d/opcache.ini
 
+# Aumentar límites de subida para imágenes y adjuntos de tickets (5 MB c/u)
+RUN echo 'upload_max_filesize=10M' >> /usr/local/etc/php/conf.d/uploads.ini \
+    && echo 'post_max_size=15M' >> /usr/local/etc/php/conf.d/uploads.ini \
+    && echo 'max_file_uploads=20' >> /usr/local/etc/php/conf.d/uploads.ini
+
 # Instalar Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 

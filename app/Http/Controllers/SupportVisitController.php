@@ -55,6 +55,14 @@ class SupportVisitController extends Controller
                 'photos' => 'nullable|array|max:10',
                 'photos.*' => 'file|mimes:jpg,jpeg,png,webp|max:5120',
                 'resolve' => 'nullable|boolean',
+            ], [
+                'client_signature_file.mimes' => 'La firma debe ser una imagen JPG, PNG o WEBP.',
+                'client_signature_file.max' => 'La firma no debe superar los 5 MB.',
+                'client_signature_file.uploaded' => 'No se pudo subir la firma. Intenta nuevamente.',
+                'photos.max' => 'Puedes adjuntar un máximo de 10 fotos en el reporte.',
+                'photos.*.mimes' => 'Las fotos del servicio deben estar en formato JPG, PNG o WEBP.',
+                'photos.*.max' => 'Cada foto del servicio no debe superar los 5 MB.',
+                'photos.*.uploaded' => 'No se pudo subir una de las fotos. Verifica que pese menos de 5 MB e intenta nuevamente.',
             ]);
             if ($validator->fails()) {
                 return ApiResponseClass::errorResponse('Error de validación', 422, $validator->errors());

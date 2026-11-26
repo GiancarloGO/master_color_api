@@ -10,6 +10,7 @@ use App\Models\TicketMessage;
 use App\Models\TicketStatusHistory;
 use App\Models\User;
 use App\Events\TicketAssigned;
+use App\Events\TicketCreated;
 use App\Events\TicketMessageCreated;
 use App\Events\TicketStatusChanged;
 use App\Services\AuditService;
@@ -65,7 +66,7 @@ class SupportTicketService
      */
     public function createForClient(Client $client, array $data, ?SoldUnit $unit = null): SupportTicket
     {
-        return DB::transaction(function () use ($client, $data, $unit) {
+        $ticket = DB::transaction(function () use ($client, $data, $unit) {
             $priority = $data['priority'] ?? 'media';
 
             $ticket = SupportTicket::create([
@@ -99,6 +100,10 @@ class SupportTicketService
 
             return $ticket->fresh();
         });
+
+        TicketCreated::dispatch($ticket->id);
+
+        return $ticket;
     }
 
     /**
@@ -153,7 +158,7 @@ class SupportTicketService
                     'ticket_id' => $ticket->id,
                     'ticket_message_id' => $messageId,
                     'file_path' => $path,
-                    'file_type' => $file->getClientMimeType(),
+                    'file_type' => $file->getMimeType() ?: $file->getClientMimeType(),
                     'original_name' => $file->getClientOriginalName(),
                     'uploaded_by_type' => $meta['type'],
                     'uploaded_by_id' => $meta['id'],

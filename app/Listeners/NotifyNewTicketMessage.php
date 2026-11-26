@@ -3,12 +3,15 @@
 namespace App\Listeners;
 
 use App\Events\TicketMessageCreated;
+use App\Listeners\Concerns\NotifiesSupportAdmins;
 use App\Models\TicketMessage;
 use App\Services\PushNotificationService;
 use Illuminate\Support\Facades\Log;
 
 class NotifyNewTicketMessage
 {
+    use NotifiesSupportAdmins;
+
     public function __construct(private PushNotificationService $push) {}
 
     public function handle(TicketMessageCreated $event): void
@@ -32,12 +35,20 @@ class NotifyNewTicketMessage
                 ]);
             }
 
-            // Mensaje del cliente → avisar al técnico asignado.
-            if ($message->author_type === 'client' && $ticket->assignedUser) {
-                $this->push->sendToModel($ticket->assignedUser, $title, $bodyExtract, [
+            // Mensaje del cliente → avisar al técnico asignado y a los administradores activos.
+            if ($message->author_type === 'client') {
+                $payload = [
                     'ticket_id' => (string) $ticket->id,
                     'type' => 'ticket_message',
-                ]);
+                ];
+
+                $notifiedIds = [];
+                if ($ticket->assignedUser) {
+                    $this->push->sendToModel($ticket->assignedUser, $title, $bodyExtract, $payload);
+                    $notifiedIds[] = $ticket->assignedUser->id;
+                }
+
+                $this->notifyActiveAdmins($title, $bodyExtract, $payload, $notifiedIds);
             }
         } catch (\Throwable $e) {
             Log::error('NotifyNewTicketMessage failed', [

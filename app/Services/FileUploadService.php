@@ -25,6 +25,10 @@ class FileUploadService
         $fileName = $this->generateFileName($file, $prefix);
         $path = $file->storeAs($folder, $fileName, $this->disk);
 
+        if (!$path) {
+            throw new \RuntimeException('No se pudo almacenar la imagen en el servidor');
+        }
+
         return $path;
     }
 
@@ -53,29 +57,51 @@ class FileUploadService
 
     private function validateImage(UploadedFile $file): void
     {
-        $extension = strtolower($file->getClientOriginalExtension());
-        
-        if (!in_array($extension, self::ALLOWED_IMAGE_TYPES)) {
+        if (!$file->isValid()) {
+            throw new InvalidArgumentException('No se pudo subir la imagen. Verifica su tamaño e intenta nuevamente');
+        }
+
+        $extension = $this->resolveExtension($file);
+
+        if (!in_array($extension, self::ALLOWED_IMAGE_TYPES, true)) {
             throw new InvalidArgumentException(
-                'Tipo de archivo no permitido. Solo se permiten: ' . implode(', ', self::ALLOWED_IMAGE_TYPES)
+                'Formato de imagen no permitido. Solo se permiten: ' . implode(', ', self::ALLOWED_IMAGE_TYPES)
             );
         }
 
         if ($file->getSize() > self::MAX_FILE_SIZE) {
             throw new InvalidArgumentException(
-                'El archivo es demasiado grande. Máximo ' . (self::MAX_FILE_SIZE / 1024 / 1024) . 'MB permitidos'
+                'La imagen es demasiado grande. Máximo ' . (self::MAX_FILE_SIZE / 1024 / 1024) . ' MB permitidos'
             );
-        }
-
-        if (!$file->isValid()) {
-            throw new InvalidArgumentException('El archivo subido no es válido');
         }
     }
 
     private function generateFileName(UploadedFile $file, string $prefix): string
     {
-        $extension = $file->getClientOriginalExtension();
+        $extension = $this->resolveExtension($file) ?: 'jpg';
         return $prefix . '_' . uniqid() . '_' . time() . '.' . $extension;
+    }
+
+    /**
+     * Resuelve la extensión de la imagen priorizando el nombre original y
+     * cayendo al MIME real detectado (útil en Android con URIs sin extensión).
+     */
+    private function resolveExtension(UploadedFile $file): string
+    {
+        $ext = strtolower($file->getClientOriginalExtension());
+        if ($ext === 'jfif') {
+            $ext = 'jpg';
+        }
+        if ($ext !== '' && in_array($ext, self::ALLOWED_IMAGE_TYPES, true)) {
+            return $ext;
+        }
+
+        $guessed = strtolower((string) $file->guessExtension());
+        if ($guessed === 'jfif') {
+            $guessed = 'jpg';
+        }
+
+        return $guessed !== '' ? $guessed : $ext;
     }
 
     public function getImageUrl(?string $imagePath): ?string

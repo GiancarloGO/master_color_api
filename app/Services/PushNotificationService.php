@@ -143,6 +143,13 @@ class PushNotificationService
                         'title' => $title,
                         'body' => $body,
                     ],
+                    'android' => [
+                        'priority' => 'high',
+                        'notification' => [
+                            'sound' => 'default',
+                            'notification_priority' => 'PRIORITY_MAX',
+                        ],
+                    ],
                     // FCM v1 exige que `data` sea un mapa (objeto) JSON, no una
                     // lista — `(object)` fuerza `{}` incluso cuando $data está
                     // vacío (un array vacío se serializaría como `[]` y FCM lo

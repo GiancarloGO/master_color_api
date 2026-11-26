@@ -75,6 +75,10 @@ class ClientSoldUnitController extends Controller
                 'serial_number' => 'nullable|string|max:191',
                 'purchase_date' => 'required|date|before_or_equal:today',
                 'proof_file' => 'nullable|file|mimes:jpg,jpeg,png,webp|max:5120',
+            ], [
+                'proof_file.mimes' => 'El comprobante debe estar en formato JPG, PNG o WEBP.',
+                'proof_file.max' => 'El comprobante no debe superar los 5 MB.',
+                'proof_file.uploaded' => 'No se pudo subir el comprobante. Verifica que pese menos de 5 MB e intenta nuevamente.',
             ]);
 
             if ($validator->fails()) {

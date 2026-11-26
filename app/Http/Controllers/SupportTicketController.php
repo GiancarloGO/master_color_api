@@ -3,9 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Classes\ApiResponseClass;
+use App\Http\Controllers\Concerns\HandlesTicketAttachments;
 use App\Http\Resources\SupportTicketResource;
 use App\Http\Resources\TicketMessageResource;
-use App\Http\Resources\TicketAttachmentResource;
 use App\Models\SupportTicket;
 use App\Models\User;
 use App\Services\SupportTicketService;
@@ -17,6 +17,8 @@ use Illuminate\Support\Facades\Validator;
 
 class SupportTicketController extends Controller
 {
+    use HandlesTicketAttachments;
+
     public function __construct(
         private SupportTicketService $tickets,
         private TicketQuoteService $quotes,
@@ -213,27 +215,7 @@ class SupportTicketController extends Controller
                 return ApiResponseClass::errorResponse('Ticket no encontrado', 404);
             }
 
-            $validator = Validator::make($request->all(), [
-                'files' => 'required|array|min:1|max:5',
-                'files.*' => 'file|mimes:jpg,jpeg,png,webp|max:5120',
-                'message_id' => 'nullable|integer|exists:ticket_messages,id',
-            ]);
-            if ($validator->fails()) {
-                return ApiResponseClass::errorResponse('Error de validación', 422, $validator->errors());
-            }
-
-            $attachments = $this->tickets->addAttachments(
-                $ticket,
-                $request->file('files'),
-                Auth::user(),
-                $request->input('message_id')
-            );
-
-            return ApiResponseClass::sendResponse(
-                TicketAttachmentResource::collection(collect($attachments)),
-                'Adjuntos cargados',
-                201
-            );
+            return $this->handleAttachmentUpload($request, $ticket, Auth::user());
         } catch (\Exception $e) {
             return ApiResponseClass::errorResponse('Error al cargar adjuntos', 500, [$e->getMessage()]);
         }

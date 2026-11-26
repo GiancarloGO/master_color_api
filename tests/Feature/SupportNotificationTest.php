@@ -199,3 +199,55 @@ it('renderiza el correo de cambio de estado sin errores', function () {
 
     expect($html)->toContain($ticket->code);
 });
+
+it('notifica tanto al técnico asignado como a los administradores activos cuando el cliente reabre el ticket', function () {
+    $seed = supportSeed();
+    $adminRole = \App\Models\Role::firstOrCreate(['name' => 'Admin'], ['description' => 'Administrador']);
+    $techRole = \App\Models\Role::firstOrCreate(['name' => 'Tecnico'], ['description' => 'Técnico']);
+
+    $admin = User::factory()->create([
+        'role_id' => $adminRole->id,
+        'dni' => '7' . random_int(1000000, 9999999),
+        'is_active' => true,
+    ]);
+    $tech = User::factory()->create([
+        'role_id' => $techRole->id,
+        'dni' => '6' . random_int(1000000, 9999999),
+        'is_active' => true,
+    ]);
+
+    $ticket = makeTicket($seed);
+    $ticket->update([
+        'assigned_user_id' => $tech->id,
+        'status' => 'resuelto',
+    ]);
+
+    $spy = Mockery::spy(PushNotificationService::class);
+    app()->instance(PushNotificationService::class, $spy);
+
+    app(SupportTicketService::class)->reopen($ticket->fresh(), 'Sigue fallando', $seed['client']);
+
+    $spy->shouldHaveReceived('sendToModel')
+        ->withArgs(fn ($model, $title) => $model instanceof User && $model->id === $tech->id && $title === 'Ticket Reabierto');
+
+    $spy->shouldHaveReceived('sendToModel')
+        ->withArgs(fn ($model, $title) => $model instanceof User && $model->id === $admin->id && $title === 'Ticket Reabierto');
+});
+
+it('notifica a los administradores activos cuando el cliente crea un ticket nuevo', function () {
+    $seed = supportSeed();
+    $adminRole = \App\Models\Role::firstOrCreate(['name' => 'Admin'], ['description' => 'Administrador']);
+    $admin = User::factory()->create([
+        'role_id' => $adminRole->id,
+        'dni' => '5' . random_int(1000000, 9999999),
+        'is_active' => true,
+    ]);
+
+    $spy = Mockery::spy(PushNotificationService::class);
+    app()->instance(PushNotificationService::class, $spy);
+
+    makeTicket($seed);
+
+    $spy->shouldHaveReceived('sendToModel')
+        ->withArgs(fn ($model, $title) => $model instanceof User && $model->id === $admin->id && $title === 'Nuevo Ticket de Soporte');
+});

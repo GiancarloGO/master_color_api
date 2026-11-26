@@ -3,9 +3,11 @@
 namespace App\Providers;
 
 use App\Events\OrderStatusChanged;
+use App\Events\TicketCreated;
 use App\Events\TicketStatusChanged;
 use App\Events\TicketMessageCreated;
 use App\Events\TicketAssigned;
+use App\Listeners\NotifyNewTicketCreated;
 use App\Listeners\SendOrderStatusEmail;
 use App\Listeners\NotifyTicketStatusChanged;
 use App\Listeners\NotifyNewTicketMessage;
@@ -22,6 +24,9 @@ class EventServiceProvider extends ServiceProvider
     protected $listen = [
         OrderStatusChanged::class => [
             SendOrderStatusEmail::class,
+        ],
+        TicketCreated::class => [
+            NotifyNewTicketCreated::class,
         ],
         TicketStatusChanged::class => [
             NotifyTicketStatusChanged::class,

@@ -3,6 +3,7 @@
 namespace App\Listeners;
 
 use App\Events\TicketStatusChanged;
+use App\Listeners\Concerns\NotifiesSupportAdmins;
 use App\Mail\TicketStatusNotification;
 use App\Models\SupportTicket;
 use App\Services\PushNotificationService;
@@ -11,6 +12,8 @@ use Illuminate\Support\Facades\Mail;
 
 class NotifyTicketStatusChanged
 {
+    use NotifiesSupportAdmins;
+
     public function __construct(private PushNotificationService $push) {}
 
     public function handle(TicketStatusChanged $event): void
@@ -24,7 +27,7 @@ class NotifyTicketStatusChanged
             // Si el cambio lo hizo el staff/sistema, se avisa al cliente.
             if (in_array($event->actorType, ['user', 'system'], true) && $ticket->client) {
                 $techName = $ticket->assignedUser ? $ticket->assignedUser->name : 'Soporte';
-                
+
                 $this->push->sendToModel($ticket->client, 'Actualización de Ticket', "El técnico {$techName} ha cambiado el estado de tu ticket #{$ticket->code} a {$ticket->statusLabel()}.", [
                     'ticket_id' => (string) $ticket->id,
                     'type' => 'ticket_status',
@@ -36,14 +39,29 @@ class NotifyTicketStatusChanged
                 }
             }
 
-            // Si lo hizo el cliente (p. ej. reapertura), se avisa al técnico asignado.
-            if ($event->actorType === 'client' && $ticket->assignedUser) {
+            // Si lo hizo el cliente (p. ej. reapertura o decisión de presupuesto),
+            // se avisa tanto al técnico asignado como a los administradores activos.
+            if ($event->actorType === 'client') {
                 $clientName = $ticket->client ? $ticket->client->name : 'Cliente Anónimo';
+                $isReopen = in_array($event->fromStatus, ['resuelto', 'cerrado'], true)
+                    && $event->toStatus === 'en_proceso';
 
-                $this->push->sendToModel($ticket->assignedUser, 'Actualización de Ticket', "El cliente {$clientName} ha cambiado el estado del ticket #{$ticket->code} a {$ticket->statusLabel()}.", [
+                $title = $isReopen ? 'Ticket Reabierto' : 'Actualización de Ticket';
+                $body = $isReopen
+                    ? "El cliente {$clientName} ha reabierto el ticket #{$ticket->code}."
+                    : "El cliente {$clientName} ha cambiado el estado del ticket #{$ticket->code} a {$ticket->statusLabel()}.";
+                $payload = [
                     'ticket_id' => (string) $ticket->id,
                     'type' => 'ticket_status',
-                ]);
+                ];
+
+                $notifiedIds = [];
+                if ($ticket->assignedUser) {
+                    $this->push->sendToModel($ticket->assignedUser, $title, $body, $payload);
+                    $notifiedIds[] = $ticket->assignedUser->id;
+                }
+
+                $this->notifyActiveAdmins($title, $body, $payload, $notifiedIds);
             }
         } catch (\Throwable $e) {
             Log::error('NotifyTicketStatusChanged failed', [
